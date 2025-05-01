@@ -1,40 +1,41 @@
-import asyncio
+# redis_assistant.py
+import asyncio, sys
+from pathlib import Path
 from agents import Agent, Runner
-from openai.types.responses import ResponseTextDeltaEvent
 from agents.mcp import MCPServerStdio
+from openai.types.responses import ResponseTextDeltaEvent
 from collections import deque
 
+THIS_DIR     = Path(__file__).resolve().parent
+PROJECT_ROOT = THIS_DIR.parent                 # repo root
+MAIN_FILE    = (PROJECT_ROOT / "src" / "main.py").resolve()
 
-# Set up and create the agent
 async def build_agent():
-    # Redis MCP Server. Pass the environment configuration for the MCP Server in the JSON
+    """Launch the Redis MCP helper (src/main.py) and return the Agent."""
     server = MCPServerStdio(
         params={
-            "command": "uv",
-            "args": [
-                "--directory", "../src/", # change with the path to the MCP server
-                "run", "main.py"
-            ],
-        "env": {
-            "REDIS_HOST": "127.0.0.1",
-            "REDIS_PORT": "6379",
-            "REDIS_USERNAME": "default",
-            "REDIS_PWD": ""
-        },
+            "command": sys.executable,          # venv’s python 3.13
+            "args": [str(MAIN_FILE)],           # plain script, no uvicorn
+            "env": {
+                "REDIS_HOST": "127.0.0.1",
+                "REDIS_PORT": "6379",
+                # add auth env vars if you need them
+            },
         }
     )
-
     await server.connect()
 
-    # Create and return the agent
     agent = Agent(
         name="Redis Assistant",
-        instructions="You are a helpful assistant capable of reading and writing to Redis. Store every question and answer in the Redis Stream app:logger",
-        mcp_servers=[server]
+        instructions=(
+            "You are a helpful assistant capable of reading and writing to "
+            "Redis. Store every question and answer in the Redis Stream "
+            "app:logger."
+        ),
+        mcp_servers=[server],
     )
 
-    return agent
-
+    return server, agent
 
 # CLI interaction
 async def cli(agent, max_history=30):
@@ -70,8 +71,9 @@ async def cli(agent, max_history=30):
 
 # Main entry point
 async def main():
-    agent = await build_agent()
-    await cli(agent)
+    server, agent = await build_agent()
+    async with server:          # ← ensures connect / disconnect in 1 task
+        await cli(agent)
 
 
 if __name__ == "__main__":
