@@ -1,0 +1,5 @@
+# requirements.txt  ─ after the fix
+git+https://github.com/langchain-ai/langchain-mcp-adapters.git#egg=langchain_mcp_adapters
+langchain-openai>=0.1.0
+langgraph>=0.0.51
+fastmcp>=2.2.5

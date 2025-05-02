@@ -65,8 +65,8 @@ async def cli(agent, max_history=30):
             print("\n")
 
             # Add the user's message and the assistant's reply in history
-            conversation_history.append({"role": "user", "content": q})
-            conversation_history.append({"role": "assistant", "content": response_text})
+            #conversation_history.append({"role": "user", "content": q})
+            #quitconversation_history.append({"role": "assistant", "content": response_text})
 
 
 # Main entry point
