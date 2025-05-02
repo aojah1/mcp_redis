@@ -47,8 +47,8 @@ Follow these instructions to install the server.
 git clone https://github.com/aojah1/mcp_redis.git
 cd mcp-redis
 
-# Install dependencies using uv
-uv venv
+# Install dependencies
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
