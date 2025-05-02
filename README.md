@@ -90,56 +90,9 @@ export OPENAI_API_KEY="<openai_token>"
 And run the [application](mcp_client/redis_assistant.py).
 
 ```commandline
-python3.13 redis_assistant.py
+python3.13 mcp_client/redis_langchain.py
 ```
 
-You can troubleshoot your agent workflows using the [OpenAI dashboard](https://platform.openai.com/traces/).
-
-## Integration with Claude Desktop
-
-### Via Smithery
-
-If you'd like to test the [Redis MCP Server](https://smithery.ai/server/@redis/mcp-redis) deployed [by Smithery](https://smithery.ai/docs/deployments), you can configure Claude Desktop automatically:
-
-```bash
-npx -y @smithery/cli install @redis/mcp-redis --client claude
-```
-
-Follow the prompt and provide the details to configure the server and connect to Redis (e.g. using a Redis Cloud database).
-The procedure will create the proper configuration in the `claude_desktop_config.json` configuration file.
-
-### Manual configuration
-
-You can configure Claude Desktop to use this MCP Server.
-
-1. Specify your Redis credentials and TLS configuration
-2. Retrieve your `uv` command full path (e.g. `which uv`)
-3. Edit the `claude_desktop_config.json` configuration file
-   - on a MacOS, at `~/Library/Application\ Support/Claude/`
-
-```commandline
-{
-    "mcpServers": {
-        "redis": {
-            "command": "<full_path_uv_command>",
-            "args": [
-                "--directory",
-                "<your_mcp_server_directory>",
-                "run",
-                "src/main.py"
-            ],
-            "env": {
-                "REDIS_HOST": "<your_redis_database_hostname>",
-                "REDIS_PORT": "<your_redis_database_port>",
-                "REDIS_PWD": "<your_redis_database_password>",
-                "REDIS_SSL": True|False,
-                "REDIS_CA_PATH": "<your_redis_ca_path>",
-                "REDIS_CLUSTER_MODE": True|False
-            }
-        }
-    }
-}
-```
 
 ### Using with Docker
 
@@ -151,29 +104,6 @@ If you'd like to build your own image, the Redis MCP Server provides a Dockerfil
 docker build -t mcp-redis .
 ```
 
-Finally, configure Claude Desktop to create the container at start-up. Edit the `claude_desktop_config.json` and add:
-
-```commandline
-{
-  "mcpServers": {
-    "redis": {
-      "command": "docker",
-      "args": ["run",
-                "--rm",
-                "--name",
-                "redis-mcp-server",
-                "-i",
-                "-e", "REDIS_HOST=<redis_hostname>",
-                "-e", "REDIS_PORT=<redis_port>",
-                "-e", "REDIS_USERNAME=<redis_username>",
-                "-e", "REDIS_PWD=<redis_password>",
-                "mcp-redis"]
-    }
-  }
-}
-```
-
-To use the official [Redis MCP Docker](https://hub.docker.com/r/mcp/redis) image, just replace your image name (`mcp-redis` in the example above) with `mcp/redis`.
 
 ### Troubleshooting
 
@@ -263,15 +193,3 @@ npx @modelcontextprotocol/inspector uv run src/main.py
 - **Chatbots & Virtual Agents**: Retrieve session data, manage queues, and personalize responses.
 - **Data Search & Analytics**: Query Redis for **real-time insights and fast lookups**.
 - **Event Processing**: Manage event streams with **Redis Streams**.
-
-## Contributing
-1. Fork the repo
-2. Create a new branch (`feature-branch`)
-3. Commit your changes
-4. Push to your branch and submit a PR!
-
-## License
-This project is licensed under the **MIT License**.
-
-## Contact
-For questions or support, reach out via [GitHub Issues](https://github.com/redis/mcp-redis/issues).
