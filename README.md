@@ -71,17 +71,8 @@ To configure this Redis MCP Server, consider the following environment variables
 | `REDIS_CA_CERTS`        | Path to the trusted CA certificates file                  | None          |
 | `REDIS_CLUSTER_MODE`    | Enable Redis Cluster mode                                 | `False`       |
 
-## Integration with OpenAI Agents SDK
 
-Integrate this MCP Server with the OpenAI Agents SDK. Read the [documents](https://openai.github.io/openai-agents-python/mcp/) to learn more about the integration of the SDK with MCP.
-Integration with OCI GenAI Service coming soon (will start with Cohere as Llama models has issues with tool calling as of today)
-Install the Python SDK.
-
-```commandline
-pip install openai-agents
-```
-
-Configure the OpenAI token:
+Configure the OpenAI token. Will use OCI GenAI Service as a next step:
 
 ```commandline
 export OPENAI_API_KEY="<openai_token>"
@@ -111,81 +102,6 @@ You can troubleshoot problems by tailing the log file.
 
 ```commandline
 tail -f ~/Library/Logs/Claude/mcp-server-redis.log
-```
-
-## Integration with VS Code
-
-To use the Redis MCP Server with VS Code, you need:
-
-1. Enable the [agent mode](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode) tools. Add the following to your `settings.json`:
-
-```commandline
-{
-  "chat.agent.enabled": true
-}
-```
-
-2. Add the Redis MCP Server configuration to your `mcp.json` or `settings.json`:
-
-```commandline
-// Example .vscode/mcp.json
-{
-  "servers": {
-    "redis": {
-      "type": "stdio",
-      "command": "<full_path_uv_command>",
-      "args": [
-        "--directory",
-        "<your_mcp_server_directory>",
-        "run",
-        "src/main.py"
-      ],
-      "env": {
-        "REDIS_HOST": "<your_redis_database_hostname>",
-        "REDIS_PORT": "<your_redis_database_port>",
-        "REDIS_USERNAME": "<your_redis_database_username>",
-        "REDIS_PWD": "<your_redis_database_password>",
-      }
-    }
-  }
-}
-```
-
-```commandline
-// Example settings.json
-{
-  "mcp": {
-    "servers": {
-      "redis": {
-        "type": "stdio",
-        "command": "<full_path_uv_command>",
-        "args": [
-          "--directory",
-          "<your_mcp_server_directory>",
-          "run",
-          "src/main.py"
-        ],
-        "env": {
-          "REDIS_HOST": "<your_redis_database_hostname>",
-          "REDIS_PORT": "<your_redis_database_port>",
-          "REDIS_USERNAME": "<your_redis_database_username>",
-          "REDIS_PWD": "<your_redis_database_password>",
-        }
-      }
-    }
-  }
-}
-```
-
-For more information, see the [VS Code documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
-
-
-## Testing
-
-You can use the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) for visual debugging of this MCP Server.
-
-```sh
-npx @modelcontextprotocol/inspector uv run src/main.py
 ```
 
 ## Example Use Cases
