@@ -50,8 +50,10 @@ cd mcp-redis
 # Install dependencies using uv
 uv venv
 source .venv/bin/activate
-uv sync
+pip install -e .
 ```
+# Install Langraph
+ python3.13 -m pip install -r requirements.txt
 
 ## Configuration
 
