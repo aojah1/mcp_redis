@@ -87,7 +87,7 @@ Configure the OpenAI token:
 export OPENAI_API_KEY="<openai_token>"
 ```
 
-And run the [application](./examples/redis_assistant.py).
+And run the [application](mcp_client/redis_assistant.py).
 
 ```commandline
 python3.13 redis_assistant.py
