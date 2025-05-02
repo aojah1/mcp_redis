@@ -44,7 +44,7 @@ Follow these instructions to install the server.
 
 ```sh
 # Clone the repository
-git clone https://github.com/redis/mcp-redis.git
+git clone https://github.com/aojah1/mcp_redis.git
 cd mcp-redis
 
 # Install dependencies using uv
@@ -74,7 +74,7 @@ To configure this Redis MCP Server, consider the following environment variables
 ## Integration with OpenAI Agents SDK
 
 Integrate this MCP Server with the OpenAI Agents SDK. Read the [documents](https://openai.github.io/openai-agents-python/mcp/) to learn more about the integration of the SDK with MCP.
-
+Integration with OCI GenAI Service coming soon (will start with Cohere as Llama models has issues with tool calling as of today)
 Install the Python SDK.
 
 ```commandline
