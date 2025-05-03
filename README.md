@@ -76,6 +76,7 @@ To configure this Redis MCP Server, consider the following environment variables
 
 Configure to use OCI GenAI Service as a next step:
 Used Cohere Model for ReAct
+
 ```configure ~/.oci/config
 https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm
 ```
