@@ -74,10 +74,10 @@ To configure this Redis MCP Server, consider the following environment variables
 | `REDIS_CLUSTER_MODE`    | Enable Redis Cluster mode                                 | `False`       |
 
 
-Configure the OpenAI token. Will use OCI GenAI Service as a next step:
-
-```commandline
-export OPENAI_API_KEY="<openai_token>"
+Configure to use OCI GenAI Service as a next step:
+Used Cohere Model for ReAct
+```configure ~/.oci/config
+https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm
 ```
 
 And run the [application](mcp_client/redis_assistant.py).
