@@ -45,7 +45,7 @@ Follow these instructions to install the server.
 ```sh
 # Clone the repository
 git clone https://github.com/aojah1/mcp_redis.git
-cd mcp-redis
+cd mcp_redis
 
 # Install dependencies
 python3.13 -m venv .venv
@@ -94,7 +94,7 @@ You can use a dockerized deployment of this server. You can either build your ow
 If you'd like to build your own image, the Redis MCP Server provides a Dockerfile. Build this server's image with:
 
 ```commandline
-docker build -t mcp-redis .
+docker build -t mcp_redis .
 ```
 
 
@@ -103,7 +103,7 @@ docker build -t mcp-redis .
 You can troubleshoot problems by tailing the log file.
 
 ```commandline
-tail -f ~/Library/Logs/Claude/mcp-server-redis.log
+tail -f ~/Library/Logs/mcp/mcp-server-redis.log
 ```
 
 ## Example Use Cases
