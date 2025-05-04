@@ -1,4 +1,5 @@
 import oci
+import os
 # ─── LLM from OCI GenAI Services - Config  ──────────────────────────────
 from langchain_community.chat_models import ChatOCIGenAI
 
@@ -70,9 +71,17 @@ print("LangSmith Tracing is Enabled")
 # Configure Nvidia Nemo Guardrails
 # ────────────────────────────────────────────────────────────────
 # TBD - https://github.com/nagarajjayakumar/cohere-nemo-demo/tree/main
-# Load a guardrails configuration from the specified path.
-#config = RailsConfig.from_path("/Users/aojah/PycharmProjects/mcp_redis/nemo_guardrails/config.yml")
-#rails = LLMRails(config, llm_oci)
+
+def get_file_path(filename):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, filename)
+
+rails_config = RailsConfig.from_content(
+        colang_content=open(get_file_path('nemo_guardrails/rails.config'), 'r').read(),
+        yaml_content=open(get_file_path('nemo_guardrails/config.yml'), 'r').read()
+    )
+
+rails = LLMRails(rails_config, llm_oci)
 #response = await rails.generate_async(prompt=prompt_template)
 
 # ────────────────────────────────────────────────────────────────
