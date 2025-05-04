@@ -6,17 +6,16 @@ from collections import deque
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from langchain_mcp_adapters.tools import load_mcp_tools
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langchain.agents import AgentType, initialize_agent
-
-THIS_DIR     = Path(__file__).resolve().parent
-PROJECT_ROOT = THIS_DIR.parent
-MAIN_FILE    = (PROJECT_ROOT / "src" / "main.py").resolve()
 
 # LLM from OCI GenAI Services - Config
 from langchain_community.chat_models import ChatOCIGenAI
 from langchain.prompts import PromptTemplate  # For creating prompts
+
+THIS_DIR     = Path(__file__).resolve().parent
+PROJECT_ROOT = THIS_DIR.parent
+MAIN_FILE    = (PROJECT_ROOT / "mcp_server" / "main.py").resolve()
 
 
 # Set your OCI credentials
