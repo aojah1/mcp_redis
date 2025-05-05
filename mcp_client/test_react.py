@@ -116,6 +116,7 @@ def initialize_llm():
 async def build_agent(session: ClientSession):
     tools = await load_mcp_tools(session)
     return create_react_agent(llm_oci, tools)
+# TBD - Use MCP Tools and Not Function Call
 
 # ────────────────────────────────────────────────────────────────
 # Setting up the Graph and Tools
@@ -136,12 +137,12 @@ def setup_graph():
     # Connect the tools to our AI model
     llm_with_tools = llm.bind_tools(tools)
 
-    # Define the chatbot node function
-    def chatbot(state: State):
+    # Define the supervisor node function
+    def supervisor(state: State):
         return {"messages": [llm_with_tools.invoke(state["messages"])]}
 
     # Build the graph structure
-    graph_builder.add_node("supervisor", chatbot)
+    graph_builder.add_node("supervisor", supervisor)
     graph_builder.add_node("tools", ToolNode(tools=[tool]))
     graph_builder.add_conditional_edges("supervisor", tools_condition)
     graph_builder.add_edge("tools", "supervisor")

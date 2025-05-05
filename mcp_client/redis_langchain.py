@@ -57,10 +57,10 @@ async def build_agent(session: ClientSession):
 
 
 # ────────────────────────────────────────────────────────────────
-# 2. Plain CLI loop (full reply, no chunk printing)
+# 2. Plain getinsights loop (full reply, no chunk printing)
 # ────────────────────────────────────────────────────────────────
-async def cli(agent, max_history: int = 30):
-    print("🔧  Redis Assistant — type 'exit' to quit\n")
+async def getinsights(agent, max_history: int = 30):
+    print("🔧  GetInsights Agent — type 'exit' to quit\n")
     history = deque(maxlen=max_history)
 
     while True:
@@ -105,7 +105,7 @@ async def main():
             await session.initialize()           # handshake
 
             agent = await build_agent(session)   # compile LangGraph
-            await cli(agent)                     # run the REPL
+            await getinsights(agent)                     # run the REPL
 
 
 if __name__ == "__main__":

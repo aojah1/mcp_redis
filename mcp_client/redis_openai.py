@@ -43,22 +43,6 @@ async def build_agent():
     )
     await server.connect()
 
-    llm = ChatOCIGenAI(
-        model_id=model_id,
-        service_endpoint=endpoint,
-        compartment_id=COMPARTMENT_ID,
-        provider="cohere",
-        model_kwargs={
-            "temperature": 1,
-            "max_tokens": 600,
-            "frequency_penalty": 0,
-            "presence_penalty": 0,
-            "top_k": 0,
-            "top_p": 0.75
-        },
-        auth_type=AUTH_TYPE,
-        auth_profile=CONFIG_PROFILE
-    )
     agent = Agent(
         name="Redis Assistant",
         instructions=(
