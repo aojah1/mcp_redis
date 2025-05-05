@@ -7,8 +7,8 @@ from collections import deque
 from dotenv import load_dotenv
 
 # silence Pydantic/serialization warnings
-logging.getLogger("pydantic").setLevel(logging.ERROR)
-logging.getLogger("langchain_core").setLevel(logging.ERROR)
+logging.getLogger("pydantic").setLevel(logging.WARN)
+logging.getLogger("langchain_core").setLevel(logging.WARN)
 
 # ─── MCP helper & tools ────────────────────────────────
 from mcp import ClientSession, StdioServerParameters
@@ -31,8 +31,24 @@ THIS_DIR     = Path(__file__).resolve().parent
 PROJECT_ROOT = THIS_DIR.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
+#────────────────────────────────────────────────────────────────
+# 2) Set up LangSmith for LangGraph development
+# ────────────────────────────────────────────────────────────────
+
+from langsmith import Client
+client = Client()
+url = next(client.list_runs(project_name="anup-blog-post")).url
+print(url)
+print("LangSmith Tracing is Enabled")
+
+# ────────────────────────────────────────────────────────────────
+# 3) Configure Nvidia Nemo Guardrails
+# ────────────────────────────────────────────────────────────────
+# TBD
+
+
 # ────────────────────────────────────────────────────────
-# 2) OCI GenAI configuration
+# 4) OCI GenAI configuration
 # ────────────────────────────────────────────────────────
 COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID")
 ENDPOINT       = os.getenv("OCI_GENAI_ENDPOINT")
@@ -56,7 +72,7 @@ def initialize_llm():
     )
 
 # ────────────────────────────────────────────────────────
-# 3) build a prebuilt ReAct-style LangGraph agent
+# 5) build a prebuilt ReAct-style LangGraph agent
 # ────────────────────────────────────────────────────────
 async def build_agent(session: ClientSession):
     tools = await load_mcp_tools(session)
@@ -65,7 +81,7 @@ async def build_agent(session: ClientSession):
     return agent
 
 # ────────────────────────────────────────────────────────
-# 4) REPL that strips out any non-string AIMessage.content
+# 6) REPL that strips out any non-string AIMessage.content
 # ────────────────────────────────────────────────────────
 async def getinsights(agent, max_history: int = 30):
     print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
@@ -81,30 +97,21 @@ async def getinsights(agent, max_history: int = 30):
         # record user turn
         history.append(HumanMessage(content=user_text))
 
-        # invoke the supervisor agent
+        # invoke the LangGraph supervisor
         result = await agent.ainvoke({"messages": list(history)})
+        # extract last AIMessage
+        ai_msg = next(
+            (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+            None
+        )
+        reply = ai_msg.content if ai_msg else "⚠️ (no reply)"
+        print(f"\n🤖 {reply}\n")
 
-        # pull out the last AIMessage
-        ai_msg = None
-        for m in reversed(result["messages"]):
-            if isinstance(m, AIMessage):
-                ai_msg = m
-                break
-
-        # if we got something, normalize it to a string
-        if ai_msg is not None:
-            content = ai_msg.content
-            if not isinstance(content, str):
-                # sometimes OCI returns a Citation object or similar
-                content = getattr(content, "text", str(content))
-        else:
-            content = "⚠️ (no reply from agent)"
-
-        print(f"\n🤖 {content}\n")
-        history.append(AIMessage(content=content))
+        # append AI turn to history
+        history.append(AIMessage(content=reply))
 
 # ────────────────────────────────────────────────────────
-# 5) wire up the MCP helper & run everything
+# 7) wire up the MCP helper & run everything
 # ────────────────────────────────────────────────────────
 async def main():
     server_params = StdioServerParameters(
@@ -122,6 +129,16 @@ async def main():
             await session.initialize()
             agent = await build_agent(session)
             await getinsights(agent)
+
+# ────────────────────────────────────────────────────────
+# 8) All Helper methods
+# ────────────────────────────────────────────────────────
+def serialise_message(message):
+    print(message)
+    #if hasattr(message, "citations"):
+    print('anup')
+    message.citations = [str(c) if isinstance(c, Citation) else c for c in message.citations]
+    return message
 
 if __name__ == "__main__":
     asyncio.run(main())
