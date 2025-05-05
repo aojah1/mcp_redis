@@ -24,6 +24,10 @@ from langchain_community.chat_models import ChatOCIGenAI
 # ─── message types ────────────────────────────────────
 from langchain_core.messages import HumanMessage, AIMessage
 
+# ─── NVIDIA Nemo Guardrails imports ──────────────────────────────
+# python -m pip install nemoguardrails
+from nemoguardrails import LLMRails, RailsConfig
+
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
 # ────────────────────────────────────────────────────────
@@ -41,14 +45,9 @@ url = next(client.list_runs(project_name="anup-blog-post")).url
 print(url)
 print("LangSmith Tracing is Enabled")
 
-# ────────────────────────────────────────────────────────────────
-# 3) Configure Nvidia Nemo Guardrails
-# ────────────────────────────────────────────────────────────────
-# TBD
-
 
 # ────────────────────────────────────────────────────────
-# 4) OCI GenAI configuration
+# 3) OCI GenAI configuration
 # ────────────────────────────────────────────────────────
 COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID")
 ENDPOINT       = os.getenv("OCI_GENAI_ENDPOINT")
@@ -70,6 +69,40 @@ def initialize_llm():
         auth_type=AUTH_TYPE,
         auth_profile=CONFIG_PROFILE,
     )
+
+# ────────────────────────────────────────────────────────────────
+# 4) Configure Nvidia Nemo Guardrails
+# ────────────────────────────────────────────────────────────────
+# TBD
+def get_file_path(filename):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, filename)
+
+#rails_config = RailsConfig.from_content(
+#        colang_content=open(get_file_path('nemo_guardrails/rails.config'), 'r').read(),
+#        yaml_content=open(get_file_path('nemo_guardrails/config.yml'), 'r').read()
+#    )
+
+# ─── NVIDIA Nemo Guardrails spec ──────────────────────────────
+# Refuse any politics-related user input
+POLITICS_RAIL = """
+version: 1
+metadata:
+  name: no-politics
+inputs:
+  user_input: str
+outputs:
+  response: str
+completion:
+  instructions:
+    - when: user_input.lower() matches /(politics|election|government|vote)/
+      response: "I’m sorry, I can’t discuss politics."
+    - when: true
+      response: "{% do %} {{ user_input }} {% enddo %}"
+"""
+rails_config = RailsConfig.from_content(colang_content=POLITICS_RAIL)
+llm_oci = initialize_llm() # This can be any LLM and need not be the same one used for ReAct
+rails = LLMRails(rails_config, llm_oci)
 
 # ────────────────────────────────────────────────────────
 # 5) build a prebuilt ReAct-style LangGraph agent
@@ -94,10 +127,17 @@ async def getinsights(agent, max_history: int = 30):
         if not user_text:
             continue
 
-        # record user turn
+        # 1) check guardrail
+        guard_resp = await rails.generate_async(user_text)
+        if guard_resp.startswith("I’m sorry"):
+            # guardrail fired—print apology and skip agent
+            print(f"\n🤖 {guard_resp}\n")
+            continue
+
+        # 2) record user turn
         history.append(HumanMessage(content=user_text))
 
-        # invoke the LangGraph supervisor
+        # 3) invoke your ReAct agent over Redis tools
         result = await agent.ainvoke({"messages": list(history)})
         # extract last AIMessage
         ai_msg = next(

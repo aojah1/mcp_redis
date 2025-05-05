@@ -81,7 +81,7 @@ rails_config = RailsConfig.from_content(
         yaml_content=open(get_file_path('nemo_guardrails/config.yml'), 'r').read()
     )
 
-rails = LLMRails(rails_config, llm_oci)
+#rails = LLMRails(rails_config, llm_oci)
 #response = await rails.generate_async(prompt=prompt_template)
 
 # ────────────────────────────────────────────────────────────────
