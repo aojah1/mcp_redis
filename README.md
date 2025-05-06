@@ -100,8 +100,9 @@ Used Cohere Model for ReAct
 ```configure ~/.oci/config
 https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm
 ```
+Use OCI Resource Principle for production
 
-And run the [application](mcp_client/redis_assistant.py).
+And run the [application](mcp_client/redis_langchain.py).
 
 ```commandline
 python3.13 mcp_client/redis_langchain.py
