@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.13
 # redis_langgraph_supervisor.py
 
-import asyncio, sys, os, logging
+import asyncio, sys, os, logging, oci
 from pathlib import Path
 from collections import deque
 from dotenv import load_dotenv
@@ -40,10 +40,10 @@ load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 # ────────────────────────────────────────────────────────────────
 
 from langsmith import Client
-client = Client()
-url = next(client.list_runs(project_name="anup-blog-post")).url
-print(url)
-print("LangSmith Tracing is Enabled")
+#client = Client()
+#url = next(client.list_runs(project_name="anup-blog-post")).url
+#print(url)
+#print("LangSmith Tracing is Enabled")
 
 
 # ────────────────────────────────────────────────────────
@@ -52,15 +52,17 @@ print("LangSmith Tracing is Enabled")
 COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID")
 ENDPOINT       = os.getenv("OCI_GENAI_ENDPOINT")
 MODEL_ID       = os.getenv("OCI_GENAI_MODEL_ID")
+PROVIDER       = os.getenv("PROVIDER")
 AUTH_TYPE      = "API_KEY"
 CONFIG_PROFILE = "DEFAULT"
+
 
 def initialize_llm():
     return ChatOCIGenAI(
         model_id=MODEL_ID,
         service_endpoint=ENDPOINT,
         compartment_id=COMPARTMENT_ID,
-        provider="cohere",
+        provider=PROVIDER,
         model_kwargs={
             "temperature": 0.5,
             "max_tokens": 512,
@@ -110,7 +112,11 @@ rails = LLMRails(rails_config, llm_oci)
 async def build_agent(session: ClientSession):
     tools = await load_mcp_tools(session)
     llm = initialize_llm()
-    agent = create_react_agent(llm, tools)
+    instructions=(
+            "You are a helpful assistant capable of reading and writing to "
+            "Redis."# While reading data, always use HGETALL command for the key provided"
+        )
+    agent = create_react_agent(llm, tools, prompt=instructions)
     return agent
 
 # ────────────────────────────────────────────────────────
