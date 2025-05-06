@@ -31,8 +31,9 @@ from nemoguardrails import LLMRails, RailsConfig
 # ────────────────────────────────────────────────────────────────
 # Load environment variables from .env file
 # ────────────────────────────────────────────────────────────────
-venv_root = Path("/Users/aojah/PycharmProjects/mcp_redis/.venv/.env")   # set automatically on activation
-load_dotenv(venv_root)
+THIS_DIR     = Path(__file__).resolve().parent
+PROJECT_ROOT = THIS_DIR.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 
 # ────────────────────────────────────────────────────────────────
