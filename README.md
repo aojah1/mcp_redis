@@ -107,7 +107,8 @@ And run the [application](mcp_client/redis_langchain.py).
 ```commandline
 python3.13 mcp_client/redis_langchain.py
 ```
-
+### To Test the Graph in Dev/Local run the following, you will get an IP/Port that can be used to connect from a lagraph client
+langgraph dev --config langgraph.json --allow-blocking
 
 ### Using with Docker
 
