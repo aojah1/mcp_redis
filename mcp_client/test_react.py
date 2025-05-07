@@ -42,14 +42,6 @@ load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 llm_oci = None
 
-COMPARTMENT_ID = "ocid1.compartment.oc1..aaaaaaaau6esoygdsqxfz6iv3u7ghvosfskyvd6kroucemvyr5wzzjcw6aaa"
-AUTH_TYPE = "API_KEY" # The authentication type to use, e.g., API_KEY (default), SECURITY_TOKEN, INSTANCE_PRINCIPAL, RESOURCE_PRINCIPAL.
-CONFIG_PROFILE = "DEFAULT"
-
-# Service endpoint
-endpoint = "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com"
-#model_id = "meta.llama-3.3-70b-instruct"
-model_id = "ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyanrlpnq5ybfu5hnzarg7jomak3q6kyhkzjsl4qj24fyoq"
 
 # ────────────────────────────────────────────────────────────────
 # Define the state structure for our supervisor agent
@@ -88,28 +80,30 @@ rails_config = RailsConfig.from_content(
 # ────────────────────────────────────────────────────────────────
 # Initialize the OCI LLM Service to be used for ReAct capabilities
 # ────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────
+# 3) OCI GenAI configuration
+# ────────────────────────────────────────────────────────
+COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID")
+ENDPOINT       = os.getenv("OCI_GENAI_ENDPOINT")
+MODEL_ID       = os.getenv("OCI_GENAI_MODEL_ID")
+PROVIDER       = os.getenv("PROVIDER")
+AUTH_TYPE      = "API_KEY"
+CONFIG_PROFILE = "DEFAULT"
+
 def initialize_llm():
-    try:
-        llm_oci = ChatOCIGenAI(
-            model_id=model_id,
-            service_endpoint=endpoint,
-            compartment_id=COMPARTMENT_ID,
-            provider="cohere", # Create an OCI Cohere LLM instance
-            model_kwargs={
-                "temperature": 1,
-                "max_tokens": 600,
-                "frequency_penalty": 0,
-                "presence_penalty": 0,
-                "top_k": 0,
-                "top_p": 0.75
-            },
-            auth_type=AUTH_TYPE,
-            auth_profile=CONFIG_PROFILE
-        )
-        return llm_oci
-    except Exception as e:
-        print(f"Error initializing LLM: {e}")
-        raise
+    return ChatOCIGenAI(
+        model_id=MODEL_ID,
+        service_endpoint=ENDPOINT,
+        compartment_id=COMPARTMENT_ID,
+        provider=PROVIDER,
+        model_kwargs={
+            "temperature": 0.5,
+            "max_tokens": 512,
+            # remove any unsupported kwargs like citation_types
+        },
+        auth_type=AUTH_TYPE,
+        auth_profile=CONFIG_PROFILE,
+    )
 
 # ────────────────────────────────────────────────────────────────
 # Compile the LangGraph agent (needs an open MCP session)
@@ -132,8 +126,8 @@ def setup_graph():
     tool = TavilySearchResults(max_results=2)
     tools = [tool]
 
-    # Set up the AI model
-    llm = llm_oci
+    # 3) Initialize a fresh LLM here
+    llm = initialize_llm()
 
     # Connect the tools to our AI model
     llm_with_tools = llm.bind_tools(tools)
@@ -194,6 +188,4 @@ def main():
 
 # Run the main function
 if __name__ == "__main__":
-    # Set up the AI model
-    llm_oci = initialize_llm()
     main()
