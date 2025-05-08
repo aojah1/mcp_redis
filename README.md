@@ -72,7 +72,7 @@ python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
-# Install Langraph
+# Install MCP Client requirement
  python3.13 -m pip install -r requirements.txt
 
 ## Configuration
@@ -109,6 +109,12 @@ python3.13 mcp_client/redis_langchain.py
 ```
 ### To Test the Graph in Dev/Local run the following, you will get an IP/Port that can be used to connect from a lagraph client
 langgraph dev --config langgraph.json --allow-blocking
+
+### To Run the graph using SSE transport - this will open an hhtp:port for the MCP client to listen in
+python3.13 mcp_server/main.py
+### on another terminal run - 
+python3.13 mcp_client/redis_langchain.py
+
 
 ### Using with Docker
 

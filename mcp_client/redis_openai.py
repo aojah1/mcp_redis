@@ -6,6 +6,7 @@ from agents.mcp import MCPServerStdio
 from openai.types.responses import ResponseTextDeltaEvent
 from collections import deque
 from langgraph.prebuilt import create_react_agent
+from dotenv import load_dotenv
 
 # LLM from OCI GenAI Services - Config
 from langchain_community.chat_models import ChatOCIGenAI
@@ -27,6 +28,11 @@ model_id = "ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyanrlpnq5ybfu
 THIS_DIR     = Path(__file__).resolve().parent
 PROJECT_ROOT = THIS_DIR.parent                 # repo root
 MAIN_FILE    = (PROJECT_ROOT / "mcp_server" / "main.py").resolve()
+
+# ────────────────────────────────────────────────────────────────
+# Load environment variables from .env file
+# ────────────────────────────────────────────────────────────────
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 async def build_agent():
     """Launch the Redis MCP helper (src/main.py) and return the Agent."""

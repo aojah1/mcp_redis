@@ -116,7 +116,11 @@ async def build_agent(session: ClientSession):
             "You are a helpful assistant capable of reading and writing to "
             "Redis."# While reading data, always use HGETALL command for the key provided"
         )
-    agent = create_react_agent(llm, tools, prompt=instructions)
+    agent = create_react_agent(llm,
+                               tools,
+                               prompt=instructions,
+                               name="agent-supervisor")
+
     return agent
 
 # ────────────────────────────────────────────────────────

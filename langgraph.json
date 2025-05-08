@@ -1,7 +1,6 @@
 {
   "graphs": {
-    "supervisor": "mcp_client/test_react.py:setup_graph",
-    "agent-supervisor": "mcp_client/agent_getinsights.py:build_agent"
+    "getinsight-supervisor": "mcp_client/redis_langchain.py:main"
   },
   "dependencies": [
     "git+https://github.com/langchain-ai/langchain-mcp-adapters.git#egg=langchain_mcp_adapters",

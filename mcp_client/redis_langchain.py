@@ -16,6 +16,7 @@ logging.getLogger("langchain_core").setLevel(logging.WARN)
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
 # ─── LangGraph ReAct agent & supervisor ────────────────
 from typing import Annotated
@@ -42,6 +43,28 @@ THIS_DIR     = Path(__file__).resolve().parent
 PROJECT_ROOT = THIS_DIR.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
+# make sure this matches the host+port langraph dev uses (default: 8000)
+SSE_HOST = os.getenv("MCP_SSE_HOST", "localhost")
+SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
+SERVER_NAME = "redis"
+
+connections = {
+    SERVER_NAME: {
+        "command": sys.executable,
+        "args":    [str(MCP_SCRIPT)],
+        "transport":"sse",
+        "url":      f"http://{SSE_HOST}:{SSE_PORT}/sse?server={SERVER_NAME}",
+        "env": {
+            "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
+            "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
+            "MCP_TRANSPORT": "sse",
+        },
+    }
+}
+
 # ─── OCI GenAI configuration ──────────────────────────
 COMPARTMENT_ID  = os.getenv("OCI_COMPARTMENT_ID")
 ENDPOINT        = os.getenv("OCI_GENAI_ENDPOINT")
@@ -63,73 +86,62 @@ def initialize_llm():
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
-# ────────────────────────────────────────────────────────
-# This is your LangGraph “factory” that langgraph dev will call.
-# It spins up an MCP stdio_client, handshakes, pulls the tools,
-# builds both the ReAct agent and wraps it in a supervisor,
-# then returns the compiled graph.
-# ────────────────────────────────────────────────────────
-async def setup_graph(session: ClientSession):
-    # Initialize our state graph
-    graph_builder = StateGraph(State)
+# ─── simple REPL ────────────────────────────────────
+async def getinsights(agent, max_history: int = 30):
+    history: deque[HumanMessage|AIMessage] = deque(maxlen=max_history)
+    print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
+    while True:
+        user_text = input("❓> ").strip()
+        if user_text.lower() in {"exit", "quit"}:
+            break
+        if not user_text:
+            continue
 
-    # 1) start helper subprocess + pipes
-    server = StdioServerParameters(
-        command=sys.executable,
-        args=[str(PROJECT_ROOT / "mcp_server" / "main.py")],
-        env={"REDIS_HOST":"127.0.0.1","REDIS_PORT":"6379"},
-    )
-    async with stdio_client(server) as (r,w):
-        async with ClientSession(r,w) as session:
-            await session.initialize()
+        history.append(HumanMessage(content=user_text))
+        result = await agent.ainvoke({"messages": list(history)})
+        ai_msg = next((m for m in reversed(result["messages"]) if isinstance(m, AIMessage)), None)
+        reply = ai_msg.content if ai_msg else "⚠️ (no reply)"
+        print(f"\n🤖 {reply}\n")
+        history.append(AIMessage(content=reply))
 
-            # 2) load Redis tools from your MCP server
-            tools = await load_mcp_tools(session)
+# ─── main with MultiServerMCPClient ─────────────────
 
-            print('anup: ')
-            print(tools)
+async def main():
+    # configure the single Redis-MCP server
+    # start up the MCP server process and connect
+    async with MultiServerMCPClient(connections) as client:
+        tools = client.get_tools()
+        if not tools:
+            raise RuntimeError(
+                "No MCP tools found — make sure your server script is at "
+                f"{MCP_SCRIPT} and that it calls mcp.run(transport='stdio'|'sse')."
+            )
 
-            # 3) Initialize a fresh LLM here
-            llm = initialize_llm()
+        # build a LangGraph ReAct agent
+        llm   = initialize_llm()
+        llm_with_tools = llm.bind_tools(tools)
 
-            # Connect the tools to our AI model
-            llm_with_tools = llm.bind_tools(tools)
+        def supervisor(state: State):
+            return {"messages": [llm_with_tools.invoke(state["messages"])]}
 
-            # Define the supervisor node function
-            def supervisor(state: State):
-                return {"messages": [llm_with_tools.invoke(state["messages"])]}
+        # build the StateGraph
+        builder = StateGraph(State)
 
-            # Build the graph structure
-            graph_builder.add_node("supervisor", supervisor)
-            graph_builder.add_node("tools", ToolNode(tools))
-            graph_builder.add_conditional_edges("supervisor", tools_condition)
-            graph_builder.add_edge("tools", "supervisor")
-            graph_builder.add_edge(START, "supervisor")
+        builder.add_node("supervisor", supervisor)
+        builder.add_node("tools", ToolNode(tools))
+        builder.add_conditional_edges("supervisor", tools_condition)
+        builder.add_edge("tools", "supervisor")
+        builder.add_edge(START, "supervisor")
+        builder.add_edge("supervisor", END)
 
-            return graph_builder.compile()
+        graph = builder.compile(
+            interrupt_before=[],  # if you want to update the state before calling the tools
+            interrupt_after=[],
+        )
+        graph.name = "getinsight-supervisor"
+        # hand off to your REPL
+        #await getinsights(graph)
+        return graph
 
-# ────────────────────────────────────────────────────────
-# Optional: a little local CLI so you can do:
-# python3 mcp_client/redis_langchain.py
-# ────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    async def _cli(max_history: int = 30):
-        graph = await setup_graph()
-        history: deque[HumanMessage | AIMessage] = deque(maxlen=max_history)
-
-        while True:
-            text = input("❓> ").strip()
-            if text.lower() in {"exit", "quit"}:
-                break
-            if not text:
-                continue
-
-            history.append(HumanMessage(content=text))
-            result = await graph.ainvoke({"messages": list(history)})
-            ai_msg = next((m for m in reversed(result["messages"])
-                           if isinstance(m, AIMessage)), None)
-            reply = ai_msg.content if ai_msg else "⚠️ no reply"
-            print(f"\n🤖 {reply}\n")
-            history.append(AIMessage(content=reply))
-
-    asyncio.run(_cli())
+    asyncio.run(main())

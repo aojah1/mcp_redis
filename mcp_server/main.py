@@ -21,7 +21,14 @@ class RedisMCPServer:
         print("Starting the RedisMCPServer", file=sys.stderr)
 
     def run(self):
-        mcp.run(transport=MCP_TRANSPORT)
+        print(f"🔧 Starting Redis MCP Server (transport={MCP_TRANSPORT})")
+
+        # if you want SSE on port 5678, do this:
+        if MCP_TRANSPORT == "sse":
+            mcp.run(transport="sse")
+        else:
+            mcp.run(transport="stdio")
+
 
 if __name__ == "__main__":
     server = RedisMCPServer()

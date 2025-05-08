@@ -9,3 +9,6 @@ oci==2.141.1
 langchain_core==0.3.29
 langchain-community==0.3.14
 nemoguardrails
+langsmith
+streamlit
+redis
