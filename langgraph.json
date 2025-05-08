@@ -1,6 +1,6 @@
 {
   "graphs": {
-    "getinsight-supervisor": "mcp_client/redis_langchain.py:main"
+    "getinsight-supervisor": "mcp_client/agent_getinsights.py:build_agent"
   },
   "dependencies": [
     "git+https://github.com/langchain-ai/langchain-mcp-adapters.git#egg=langchain_mcp_adapters",

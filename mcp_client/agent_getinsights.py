@@ -128,32 +128,17 @@ SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
 SERVER_NAME = "redis"
 MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
 
-if(MCP_TRANSPORT == "stdio"):
-    connections = {
+connections = {
         SERVER_NAME: {
             "command": sys.executable,
             "args": [str(MCP_SCRIPT)],
             "env": {
                 "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
                 "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
-            },
-        }
-    }
-else:
-    connections = {
-        SERVER_NAME: {
-            "command": sys.executable,
-            "args":    [str(MCP_SCRIPT)],
-            "transport": MCP_TRANSPORT,
-            "url":      f"http://{SSE_HOST}:{SSE_PORT}/sse?server={SERVER_NAME}",
-            "env": {
-                "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
-                "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
                 "MCP_TRANSPORT": MCP_TRANSPORT,
             },
         }
     }
-
 
 # ────────────────────────────────────────────────────────
 # 5) build a Supervisor LangGraph agent
@@ -161,8 +146,6 @@ else:
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-
-
 
 
 async def build_agent():
