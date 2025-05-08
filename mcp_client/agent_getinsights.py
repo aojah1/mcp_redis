@@ -1,10 +1,12 @@
 #!/usr/bin/env python3.13
 # redis_langgraph_supervisor.py
 
-import asyncio, sys, os, logging, oci
+import asyncio, sys, os, logging
 from pathlib import Path
 from collections import deque
 from dotenv import load_dotenv
+from datetime import datetime
+from contextlib import asynccontextmanager
 
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -14,18 +16,25 @@ logging.getLogger("langchain_core").setLevel(logging.WARN)
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
-# ─── LangGraph ReAct agent ────────────────────────────
+# ─── LangGraph ReAct agent & supervisor ────────────────
+from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
+from langgraph_supervisor import create_supervisor
+from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.graph import StateGraph, START, END
 
 # ─── OCI LLM ──────────────────────────────────────────
 from langchain_community.chat_models import ChatOCIGenAI
 
 # ─── message types ────────────────────────────────────
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from collections import deque
 
-# ─── NVIDIA Nemo Guardrails imports ──────────────────────────────
-# python -m pip install nemoguardrails
+# ─── NVIDIA Nemo Guardrails ──────────────────────────────
 from nemoguardrails import LLMRails, RailsConfig
 
 # ────────────────────────────────────────────────────────
@@ -106,30 +115,109 @@ rails_config = RailsConfig.from_content(colang_content=POLITICS_RAIL)
 llm_oci = initialize_llm() # This can be any LLM and need not be the same one used for ReAct
 rails = LLMRails(rails_config, llm_oci)
 
-# ────────────────────────────────────────────────────────
-# 5) build a prebuilt ReAct-style LangGraph agent
-# ────────────────────────────────────────────────────────
-async def build_agent(session: ClientSession):
-    tools = await load_mcp_tools(session)
-    llm = initialize_llm()
-    instructions=(
-            "You are a helpful assistant capable of reading and writing to "
-            "Redis."# While reading data, always use HGETALL command for the key provided"
-        )
-    agent = create_react_agent(llm,
-                               tools,
-                               prompt=instructions,
-                               name="agent-supervisor")
+# ────────────────────────────────────────────────────────────────
+# 4) Configure MCP Connections to SSE or STDIO
+# ────────────────────────────────────────────────────────────────
 
-    return agent
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
+# make sure this matches the host+port langraph dev uses (default: 8000)
+SSE_HOST = os.getenv("MCP_SSE_HOST", "localhost")
+SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
+SERVER_NAME = "redis"
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
+
+if(MCP_TRANSPORT == "stdio"):
+    connections = {
+        SERVER_NAME: {
+            "command": sys.executable,
+            "args": [str(MCP_SCRIPT)],
+            "env": {
+                "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
+                "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
+            },
+        }
+    }
+else:
+    connections = {
+        SERVER_NAME: {
+            "command": sys.executable,
+            "args":    [str(MCP_SCRIPT)],
+            "transport": MCP_TRANSPORT,
+            "url":      f"http://{SSE_HOST}:{SSE_PORT}/sse?server={SERVER_NAME}",
+            "env": {
+                "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
+                "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
+                "MCP_TRANSPORT": MCP_TRANSPORT,
+            },
+        }
+    }
+
+
+# ────────────────────────────────────────────────────────
+# 5) build a Supervisor LangGraph agent
+# ────────────────────────────────────────────────────────
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+
+
+
+async def build_agent():
+    # configure the single Redis-MCP server
+    async with MultiServerMCPClient(connections) as client:
+        tools = client.get_tools()
+        if not tools:
+            raise RuntimeError(
+                "No MCP tools found — make sure your server script is at "
+                f"{MCP_SCRIPT} and that it calls mcp.run(transport='stdio'|'sse')."
+            )
+
+        # Initialize the LLM
+        llm = initialize_llm()
+        llm_with_tools = llm.bind_tools(tools)
+
+        SYSTEM_PROMPT = (
+            "You are a Redis-savvy assistant. "
+            "For reads: always use HGETALL.\n"
+            "For writes: use HSET (and EXPIRE when needed)."
+        )
+
+        def supervisor(state: State):
+            messages = state["messages"]
+
+            # Insert system prompt only once
+            if not any(isinstance(m, SystemMessage) for m in messages):
+                messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
+
+            result = llm_with_tools.invoke(messages)
+            return {"messages": [result]}
+
+        # Build LangGraph
+        builder = StateGraph(State)
+        builder.add_node("supervisor", supervisor)
+        builder.add_node("tools", ToolNode(tools))
+        builder.add_conditional_edges("supervisor", tools_condition)
+        builder.add_edge("tools", "supervisor")
+        builder.add_edge(START, "supervisor")
+        builder.add_edge("supervisor", END)
+
+        graph = builder.compile(interrupt_before=[], interrupt_after=[])
+        graph.name = "getinsight-supervisor"
+
+        await getinsights(graph)
+        return graph
+
 
 # ────────────────────────────────────────────────────────
 # 6) REPL that strips out any non-string AIMessage.content
 # ────────────────────────────────────────────────────────
+# ─── simple REPL ────────────────────────────────────
 async def getinsights(agent, max_history: int = 30):
-    print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
     history: deque[HumanMessage|AIMessage] = deque(maxlen=max_history)
-
+    print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
     while True:
         user_text = input("❓> ").strip()
         if user_text.lower() in {"exit", "quit"}:
@@ -137,58 +225,13 @@ async def getinsights(agent, max_history: int = 30):
         if not user_text:
             continue
 
-        # 1) check guardrail
-        guard_resp = await rails.generate_async(user_text)
-        if guard_resp.startswith("I’m sorry"):
-            # guardrail fired—print apology and skip agent
-            print(f"\n🤖 {guard_resp}\n")
-            continue
-
-        # 2) record user turn
         history.append(HumanMessage(content=user_text))
-
-        # 3) invoke your ReAct agent over Redis tools
         result = await agent.ainvoke({"messages": list(history)})
-        # extract last AIMessage
-        ai_msg = next(
-            (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
-            None
-        )
+        ai_msg = next((m for m in reversed(result["messages"]) if isinstance(m, AIMessage)), None)
         reply = ai_msg.content if ai_msg else "⚠️ (no reply)"
         print(f"\n🤖 {reply}\n")
-
-        # append AI turn to history
         history.append(AIMessage(content=reply))
 
-# ────────────────────────────────────────────────────────
-# 7) wire up the MCP helper & run everything
-# ────────────────────────────────────────────────────────
-async def main():
-    server_params = StdioServerParameters(
-        command=sys.executable,
-        args=[str(PROJECT_ROOT / "mcp_server" / "main.py")],
-        env={
-            "REDIS_HOST": "127.0.0.1",
-            "REDIS_PORT": "6379",
-            # "REDIS_PASSWORD": "…"  # uncomment if you need AUTH
-        }
-    )
-
-    async with stdio_client(server_params) as (reader, writer):
-        async with ClientSession(reader, writer) as session:
-            await session.initialize()
-            agent = await build_agent(session)
-            await getinsights(agent)
-
-# ────────────────────────────────────────────────────────
-# 8) All Helper methods
-# ────────────────────────────────────────────────────────
-def serialise_message(message):
-    print(message)
-    #if hasattr(message, "citations"):
-    print('anup')
-    message.citations = [str(c) if isinstance(c, Citation) else c for c in message.citations]
-    return message
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    graph = asyncio.run(build_agent())
+

@@ -50,22 +50,48 @@ MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
 SSE_HOST = os.getenv("MCP_SSE_HOST", "localhost")
 SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
 SERVER_NAME = "redis"
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
 
-connections = {
-    SERVER_NAME: {
-        "command": sys.executable,
-        "args":    [str(MCP_SCRIPT)],
-        "transport":"sse",
-        "url":      f"http://{SSE_HOST}:{SSE_PORT}/sse?server={SERVER_NAME}",
-        "env": {
-            "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
-            "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
-            "MCP_TRANSPORT": "sse",
-        },
+if(MCP_TRANSPORT == "stdio"):
+    connections = {
+        SERVER_NAME: {
+            "command": sys.executable,
+            "args": [str(MCP_SCRIPT)],
+            "env": {
+                "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
+                "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
+            },
+        }
     }
-}
+else:
+    connections = {
+        SERVER_NAME: {
+            "command": sys.executable,
+            "args":    [str(MCP_SCRIPT)],
+            "transport": MCP_TRANSPORT,
+            "url":      f"http://{SSE_HOST}:{SSE_PORT}/sse?server={SERVER_NAME}",
+            "env": {
+                "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
+                "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
+                "MCP_TRANSPORT": MCP_TRANSPORT,
+            },
+        }
+    }
 
-# ─── OCI GenAI configuration ──────────────────────────
+#────────────────────────────────────────────────────────────────
+# 2) Set up LangSmith for LangGraph development
+# ────────────────────────────────────────────────────────────────
+
+from langsmith import Client
+client = Client()
+url = next(client.list_runs(project_name="anup-blog-post")).url
+print("LangSmith Tracing URL: ")
+print(url)
+
+# ────────────────────────────────────────────────────────
+# 3) OCI GenAI configuration
+# ────────────────────────────────────────────────────────
+
 COMPARTMENT_ID  = os.getenv("OCI_COMPARTMENT_ID")
 ENDPOINT        = os.getenv("OCI_GENAI_ENDPOINT")
 MODEL_ID        = os.getenv("OCI_GENAI_MODEL_ID")
@@ -140,7 +166,7 @@ async def main():
         )
         graph.name = "getinsight-supervisor"
         # hand off to your REPL
-        #await getinsights(graph)
+        await getinsights(graph)
         return graph
 
 if __name__ == "__main__":

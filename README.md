@@ -112,9 +112,12 @@ langgraph dev --config langgraph.json --allow-blocking
 
 ### To Run the graph using SSE transport - this will open an hhtp:port for the MCP client to listen in
 python3.13 mcp_server/main.py
-### on another terminal run - 
-python3.13 mcp_client/redis_langchain.py
+The endpoint http://localhost:8000/sse?server=redis is reachable via curl.
+curl -N http://localhost:8000/sse?server=redis
+If it says "Not Found" or connection refused, the server isn’t running correctly.
 
+** on another terminal run - 
+python3.13 mcp_client/redis_langchain.py
 
 ### Using with Docker
 

@@ -12,3 +12,4 @@ nemoguardrails
 langsmith
 streamlit
 redis
+agents
