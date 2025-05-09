@@ -1,4 +1,14 @@
 {
+  "transport": {
+    "type": "stdio",
+    "command": "python3.13",
+    "args": ["mcp_server/main.py"],
+    "env": {
+      "REDIS_HOST": "127.0.0.1",
+      "REDIS_PORT": "6379",
+      "MCP_TRANSPORT": "stdio"
+    }
+  },
   "graphs": {
     "getinsight-supervisor": "mcp_client/agent_getinsights.py:build_agent"
   },

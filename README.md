@@ -108,6 +108,7 @@ And run the [application](mcp_client/redis_langchain.py).
 python3.13 mcp_client/redis_langchain.py
 ```
 ### To Test the Graph in Dev/Local run the following, you will get an IP/Port that can be used to connect from a lagraph client
+
 langgraph dev --config langgraph.json --allow-blocking
 
 ### To Run the graph using SSE transport - this will open an hhtp:port for the MCP client to listen in

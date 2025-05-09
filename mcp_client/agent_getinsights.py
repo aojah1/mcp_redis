@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 from contextlib import asynccontextmanager
 
+from markdown.test_tools import recursionlimit
+
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
 logging.getLogger("langchain_core").setLevel(logging.WARN)
@@ -126,7 +128,7 @@ MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
 SSE_HOST = os.getenv("MCP_SSE_HOST", "localhost")
 SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
 SERVER_NAME = "redis"
-MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "sse")
 
 connections = {
         SERVER_NAME: {
@@ -135,7 +137,7 @@ connections = {
             "env": {
                 "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
                 "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
-                "MCP_TRANSPORT": MCP_TRANSPORT,
+                "TRANSPORT": "sse",
             },
         }
     }
@@ -143,11 +145,13 @@ connections = {
 # ────────────────────────────────────────────────────────
 # 5) build a Supervisor LangGraph agent
 # ────────────────────────────────────────────────────────
+# Bring all the agents togather - Supervisro Agent
+#research_supervisor_node = make_supervisor_node(llm_oci, ["RAG", "Web_Scrapper", "search", "nl2sql", "nl2sql_sf"])
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
-
+config = {"configurable": {"thread_id": "abc123"}}
 async def build_agent():
     # configure the single Redis-MCP server
     async with MultiServerMCPClient(connections) as client:
@@ -175,8 +179,8 @@ async def build_agent():
             if not any(isinstance(m, SystemMessage) for m in messages):
                 messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
 
-            result = llm_with_tools.invoke(messages)
-            return {"messages": [result]}
+            return {"messages": [llm_with_tools.invoke(messages)]}
+
 
         # Build LangGraph
         builder = StateGraph(State)
@@ -215,6 +219,13 @@ async def getinsights(agent, max_history: int = 30):
         print(f"\n🤖 {reply}\n")
         history.append(AIMessage(content=reply))
 
+async def main():
+    # 1) build your graph
+    graph = await build_agent()
+    # 2) enter the REPL
+    await getinsights(graph)
+
 if __name__ == "__main__":
-    graph = asyncio.run(build_agent())
+    asyncio.run(main())
+
 
