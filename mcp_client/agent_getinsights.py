@@ -5,10 +5,6 @@ import asyncio, sys, os, logging
 from pathlib import Path
 from collections import deque
 from dotenv import load_dotenv
-from datetime import datetime
-from contextlib import asynccontextmanager
-
-from markdown.test_tools import recursionlimit
 
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -25,7 +21,6 @@ from typing import Annotated
 from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
-from langgraph_supervisor import create_supervisor
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph import StateGraph, START, END
 
@@ -128,7 +123,7 @@ MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
 SSE_HOST = os.getenv("MCP_SSE_HOST", "localhost")
 SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
 SERVER_NAME = "redis"
-MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "sse")
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
 
 connections = {
         SERVER_NAME: {
@@ -137,7 +132,7 @@ connections = {
             "env": {
                 "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
                 "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
-                "TRANSPORT": "sse",
+                "TRANSPORT": MCP_TRANSPORT,
             },
         }
     }
@@ -223,7 +218,7 @@ async def main():
     # 1) build your graph
     graph = await build_agent()
     # 2) enter the REPL
-    await getinsights(graph)
+    #await getinsights(graph)
 
 if __name__ == "__main__":
     asyncio.run(main())
