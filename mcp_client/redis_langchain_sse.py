@@ -1,124 +1,242 @@
 #!/usr/bin/env python3.13
-import os
-import sys
-import asyncio
-import logging
+# redis_langgraph_supervisor.py
+
+import asyncio, sys, os, logging
 from pathlib import Path
 from collections import deque
 from dotenv import load_dotenv
+from datetime import datetime
+from contextlib import asynccontextmanager
 
-# silence Pydantic/langchain_core warnings
+from markdown.test_tools import recursionlimit
+
+# silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
 logging.getLogger("langchain_core").setLevel(logging.WARN)
 
-# ─── MCP helper & transports ────────────────────────────
+# ─── MCP helper & tools ────────────────────────────────
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.client.sse import sse_client
 from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
-# ─── LangGraph ReAct agent ───────────────────────────────
+# ─── LangGraph ReAct agent & supervisor ────────────────
+from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
+from langgraph_supervisor import create_supervisor
+from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.graph import StateGraph, START, END
 
-# ─── OCI LLM ─────────────────────────────────────────────
+# ─── OCI LLM ──────────────────────────────────────────
 from langchain_community.chat_models import ChatOCIGenAI
 
-# ─── LangChain message types ────────────────────────────
-from langchain_core.messages import HumanMessage, AIMessage
+# ─── message types ────────────────────────────────────
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from collections import deque
 
-# ─────────────────────────────────────────────────────────
+# ─── NVIDIA Nemo Guardrails ──────────────────────────────
+from nemoguardrails import LLMRails, RailsConfig
+
+# ────────────────────────────────────────────────────────
+# 1) bootstrap paths + env
+# ────────────────────────────────────────────────────────
+THIS_DIR     = Path(__file__).resolve().parent
+PROJECT_ROOT = THIS_DIR.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
+
+#────────────────────────────────────────────────────────────────
+# 2) Set up LangSmith for LangGraph development
+# ────────────────────────────────────────────────────────────────
+
+from langsmith import Client
+#client = Client()
+#url = next(client.list_runs(project_name="anup-blog-post")).url
+#print(url)
+#print("LangSmith Tracing is Enabled")
+
+
+# ────────────────────────────────────────────────────────
+# 3) OCI GenAI configuration
+# ────────────────────────────────────────────────────────
+COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID")
+ENDPOINT       = os.getenv("OCI_GENAI_ENDPOINT")
+MODEL_ID       = os.getenv("OCI_GENAI_MODEL_ID")
+PROVIDER       = os.getenv("PROVIDER")
+AUTH_TYPE      = "API_KEY"
+CONFIG_PROFILE = "DEFAULT"
+
+
 def initialize_llm():
-    """
-    Load OCI creds from .env and return a ChatOCIGenAI instance.
-    """
-    # assumes a PROJECT_ROOT/.env with OCI_GENAI_* and OCI_COMPARTMENT_ID
-    load_dotenv(Path(__file__).parent.parent / ".env")
     return ChatOCIGenAI(
-        model_id=os.environ["OCI_GENAI_MODEL_ID"],
-        service_endpoint=os.environ["OCI_GENAI_ENDPOINT"],
-        compartment_id=os.environ["OCI_COMPARTMENT_ID"],
-        provider=os.environ.get("PROVIDER", "cohere"),
-        model_kwargs={"temperature": 0.5, "max_tokens": 512},
-        auth_type="API_KEY",
-        auth_profile="DEFAULT",
+        model_id=MODEL_ID,
+        service_endpoint=ENDPOINT,
+        compartment_id=COMPARTMENT_ID,
+        provider=PROVIDER,
+        model_kwargs={
+            "temperature": 0.5,
+            "max_tokens": 512,
+            # remove any unsupported kwargs like citation_types
+        },
+        auth_type=AUTH_TYPE,
+        auth_profile=CONFIG_PROFILE,
     )
 
-# ─────────────────────────────────────────────────────────
-async def build_agent(session: ClientSession):
+# ────────────────────────────────────────────────────────────────
+# 4) Configure Nvidia Nemo Guardrails
+# ────────────────────────────────────────────────────────────────
+# TBD
+def get_file_path(filename):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, filename)
+
+#rails_config = RailsConfig.from_content(
+#        colang_content=open(get_file_path('nemo_guardrails/rails.config'), 'r').read(),
+#        yaml_content=open(get_file_path('nemo_guardrails/config.yml'), 'r').read()
+#    )
+
+# ─── NVIDIA Nemo Guardrails spec ──────────────────────────────
+# Refuse any politics-related user input
+POLITICS_RAIL = """
+version: 1
+metadata:
+  name: no-politics
+inputs:
+  user_input: str
+outputs:
+  response: str
+completion:
+  instructions:
+    - when: user_input.lower() matches /(politics|election|government|vote)/
+      response: "I’m sorry, I can’t discuss politics."
+    - when: true
+      response: "{% do %} {{ user_input }} {% enddo %}"
+"""
+rails_config = RailsConfig.from_content(colang_content=POLITICS_RAIL)
+llm_oci = initialize_llm() # This can be any LLM and need not be the same one used for ReAct
+rails = LLMRails(rails_config, llm_oci)
+
+# ────────────────────────────────────────────────────────────────
+# 4) Configure MCP Connections to SSE or STDIO
+# ────────────────────────────────────────────────────────────────
+
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
+# make sure this matches the host+port langraph dev uses (default: 8000)
+SSE_HOST = os.getenv("MCP_SSE_HOST", "localhost")
+SSE_PORT = os.getenv("MCP_SSE_PORT", "8000")
+SERVER_NAME = "redis"
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "sse")
+
+connections = {
+        SERVER_NAME: {
+            "command": sys.executable,
+            "args": [str(MCP_SCRIPT)],
+            "env": {
+                "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
+                "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
+                "TRANSPORT": MCP_TRANSPORT,
+            },
+        }
+    }
+
+# ────────────────────────────────────────────────────────
+# 5) build a Supervisor LangGraph agent
+# ────────────────────────────────────────────────────────
+# Bring all the agents togather - Supervisro Agent
+#research_supervisor_node = make_supervisor_node(llm_oci, ["RAG", "Web_Scrapper", "search", "nl2sql", "nl2sql_sf"])
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+config = {"configurable": {"thread_id": "abc123"}}
+# ────────────────────────────────────────────────────────
+# 5) build a Supervisor LangGraph agent (refactored)
+# ────────────────────────────────────────────────────────
+
+async def build_agent(tools) -> StateGraph:
     """
-    Given an open MCP session, load the Redis tools and return
-    a prebuilt ReAct‑style LangGraph agent.
+    Given an already-open MCPClient tools list, build and return the StateGraph.
     """
+    SYSTEM_PROMPT = (
+        "You are a Redis-savvy assistant. "
+        "For reads: always use HGETALL.\n"
+        "For writes: use HSET (and EXPIRE when needed)."
+    )
+
+    # bind your LLM + tools
     llm = initialize_llm()
-    tools = await load_mcp_tools(session)
-    return create_react_agent(
-        llm,
-        tools,
-        prompt=(
-            "You are a Redis‑savvy assistant.\n"
-            "When asked to read from Redis, always use HGETALL.\n"
-            "When asked to write, use HSET or EXPIRE as needed."
-        ),
-        name="redis-supervisor",
-    )
+    llm_with_tools = llm.bind_tools(tools)
 
-# ─────────────────────────────────────────────────────────
+    # streaming supervisor node
+    async def supervisor(state: State) -> dict:
+        messages = state["messages"]
+        # insert system prompt once
+        if not any(isinstance(m, SystemMessage) for m in messages):
+            messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
+
+        # stream token chunks, print them, and accumulate
+        import sys
+        full_text = ""
+        async for chunk in llm_with_tools.astream(messages):
+            sys.stdout.write(chunk.content)
+            sys.stdout.flush()
+            full_text += chunk.content
+
+        # hand back a complete AIMessage
+        return {"messages": [AIMessage(content=full_text)]}
+
+    # assemble the graph
+    builder = StateGraph(State)
+    builder.add_node("supervisor", supervisor)
+    builder.add_node("tools", ToolNode(tools))
+    builder.add_conditional_edges("supervisor", tools_condition)
+    builder.add_edge(START, "supervisor")
+    builder.add_edge("supervisor", "tools")
+    builder.add_edge("tools", "supervisor")
+    builder.add_edge("supervisor", END)
+
+    graph = builder.compile(interrupt_before=[], interrupt_after=[])
+    graph.name = "getinsight-supervisor"
+    return graph
+
+# ────────────────────────────────────────────────────────
+# 6) REPL that strips out any non-string AIMessage.content
+# ────────────────────────────────────────────────────────
+# ─── simple REPL ────────────────────────────────────
 async def getinsights(agent, max_history: int = 30):
-    """
-    Simple REPL: keeps a short history, sends it to the agent,
-    and prints out the AIMessage response.
-    """
-    print("🔧  Redis Supervisor — type 'exit' to quit\n")
-    history: deque[HumanMessage | AIMessage] = deque(maxlen=max_history)
-
+    history: deque[HumanMessage|AIMessage] = deque(maxlen=max_history)
+    print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
     while True:
-        q = input("❓> ").strip()
-        if q.lower() in ("exit", "quit"):
+        user_text = input("❓> ").strip()
+        if user_text.lower() in {"exit", "quit"}:
             break
-        if not q:
+        if not user_text:
             continue
 
-        # add the new user turn
-        history.append(HumanMessage(content=q))
-
-        # call the agent
+        history.append(HumanMessage(content=user_text))
         result = await agent.ainvoke({"messages": list(history)})
-        ai_msg = next(
-            (m for m in result["messages"] if isinstance(m, AIMessage)),
-            None
-        )
+        ai_msg = next((m for m in reversed(result["messages"]) if isinstance(m, AIMessage)), None)
         reply = ai_msg.content if ai_msg else "⚠️ (no reply)"
         print(f"\n🤖 {reply}\n")
-
-        # add the AI turn to history
         history.append(AIMessage(content=reply))
 
+async def main():
+    # open & hold the MCP client for both build & REPL
+    async with MultiServerMCPClient(connections) as client:
+        tools = client.get_tools()
+        if not tools:
+            raise RuntimeError("No MCP tools found — check your server script.")
 
-# ─────────────────────────────────────────────────────────
+        # build graph using live tools
+        graph = await build_agent(tools)
+
+        # start the interactive loop
+        await getinsights(graph)
+
+
 if __name__ == "__main__":
-    async def main():
-        # spawn an MCP helper over stdio
-        server_params = StdioServerParameters(
-            command=sys.executable,
-            args=[str(Path(__file__).parent.parent / "mcp_server" / "main.py")],
-            env={"REDIS_HOST": "127.0.0.1", "REDIS_PORT": "6379"},
-        )
-
-        if os.environ.get("MCP_TRANSPORT") == "sse":
-            # switch to SSE transport
-            sse_url = os.environ.get("MCP_SSE_URL", "http://localhost:8000/events")
-            async with sse_client(url=sse_url) as (reader, writer):
-                async with ClientSession(reader, writer) as session:
-                    await session.initialize()
-                    agent = await build_agent(session)
-                    await getinsights(agent)
-
-        else:
-            # default to stdio transport
-            async with stdio_client(server_params) as (reader, writer):
-                async with ClientSession(reader, writer) as session:
-                    await session.initialize()
-                    agent = await build_agent(session)
-                    await getinsights(agent)
-
     asyncio.run(main())
+

@@ -6,10 +6,11 @@ fastmcp>=2.2.5
 langchain>=0.1.20
 openai>=1.23.0
 oci==2.141.1
-langchain_core==0.3.29
+langchain_core>=0.3.29
 langchain-community==0.3.14
 nemoguardrails
 langsmith
 streamlit
-redis
-agents
+langchain_mcp_adapters
+openai-agents
+

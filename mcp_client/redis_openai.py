@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # LLM from OCI GenAI Services - Config
 from langchain_community.chat_models import ChatOCIGenAI
 from langchain.prompts import PromptTemplate  # For creating prompts
-from agents import Agent, Runner
+
 
 # Set your OCI credentials
 COMPARTMENT_ID = "ocid1.compartment.oc1..aaaaaaaau6esoygdsqxfz6iv3u7ghvosfskyvd6kroucemvyr5wzzjcw6aaa"
