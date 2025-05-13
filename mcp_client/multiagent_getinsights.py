@@ -17,7 +17,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain_mcp_adapters.client import MultiServerMCPClient
-
+from agents.mcp import MCPServerStdio
 
 # ─── LangGraph ReAct agent & supervisor ────────────────
 from typing import Annotated, Literal
@@ -40,6 +40,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain.tools import Tool
 from langchain.agents import AgentType, initialize_agent
 from collections import deque
+from agents import Agent, Runner
 
 # ─── NVIDIA Nemo Guardrails ──────────────────────────────
 from nemoguardrails import LLMRails, RailsConfig
@@ -240,84 +241,92 @@ def rag_node(state: State) -> Command[Literal["supervisor"]]:
 ########## END RAG AGENT ##################
 
 ######### REDIS MCP based Agent ###########
-# Step 1. Define the tool
-from agents import Agent
+# ─── build a Redis–MCP client ─────────────────────────
+
 def setup_redis():
-    server = MCPServerStdio(
+    # 1. create & connect the transport
+    transport = MCPServerStdio(
         params={
-            "command": sys.executable,  # venv’s python 3.13
-            "args": [str(MAIN_FILE)],  # plain script, no uvicorn
-            "env": {
-                "REDIS_HOST": "127.0.0.1",
-                "REDIS_PORT": "6379",
-                # add auth env vars if you need them
-            },
+            "command": sys.executable,
+            "args": [str(MAIN_FILE)],
+            "env": {"REDIS_HOST": "127.0.0.1", "REDIS_PORT": "6379"},
         }
     )
-    return server
-
+    return transport
+#from langchain_mcp_adapters.tools import load_mcp_tools
 # Step 3. Define the REDIS Agent
+
 async def redis_agent():
-    server = setup_redis()
-    await server.connect()
+    connections = setup_redis()
 
-    redis_agent = Agent(
-        name="Redis Assistant",
-        instructions=("You are a helpful assistant capable of reading and writing to Redis. Store every question and answer in the Redis Stream app:logger."),
-        # llm=llm,
-        mcp_servers=[server],
-    )
-    return redis_agent
-    #redis_agent = initialize_agent(
-    #    llm=llm,
-        # agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    #    mcp_servers=[server],
-    #    verbose=True
-    #)
+    async with MultiServerMCPClient(connections) as client:
+        tools = client.get_tools()
+        if not tools:
+            raise RuntimeError(
+                "No MCP tools found — make sure your server script is at "
+                f"{MCP_SCRIPT} and that it calls mcp.run(transport='stdio'|'sse')."
+            )
 
+        llm_with_tools = llm.bind_tools(tools)
+
+        return llm_with_tools
 
 # Step 3. Define the REDIS Agent Langraph Node
-def redis_node(state: State) -> Command[Literal["supervisor"]]:
-    # Ensure state is a dictionary
-    if isinstance(state, dict):
-        messages = state.get("messages", [])
-    else:
-        messages = state.messages  # If it's an object, use its attribute
+connections = {
+        SERVER_NAME: {
+            "command": sys.executable,
+            "args": [str(MCP_SCRIPT)],
+            "env": {
+                "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
+                "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
+                "TRANSPORT": MCP_TRANSPORT,
+            },
+        }
+    }
 
-    # Extract last user message
-    if messages:
-        user_input = messages[-1].content
-    else:
-        raise ValueError("No messages found in state")
+async def redis_node(state: State) -> Command[Literal["supervisor"]]:
+    #connections = setup_redis()
 
-    # 🚀 Debugging: Print the extracted message
-    print("User Input Received:", user_input)
+    async with MultiServerMCPClient(connections) as client:
+        tools = client.get_tools()
+        if not tools:
+            raise RuntimeError(
+                "No MCP tools found — make sure your server script is at "
+                f"{MCP_SCRIPT} and that it calls mcp.run(transport='stdio'|'sse')."
+            )
 
-    # Invoke the agent service
-    result = redis_agent().ainvoke({"input": user_input})
+        llm_with_tools = llm.bind_tools(tools)
 
-    # 🚀 Debugging: Print the raw agent response
-    print("Agent Response:", result)
+        # Ensure state is a dictionary
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = state.messages  # If it's an object, use its attribute
 
-    # Handle case where result is a string instead of a dictionary
-    if isinstance(result, str):
-        result = {"output": result}  # Convert to dictionary format
+        # Extract last user message
+        if messages:
+            user_input = messages[-1].content
+        else:
+            raise ValueError("No messages found in state")
 
-    # Ensure result contains expected keys
-    if not isinstance(result, dict):
-        raise TypeError(f"Expected a dictionary but got {type(result)} instead.")
+        # 🚀 Debugging: Print the extracted message
+        print("User Input Received:", user_input)
 
-    if "output" not in result:
-        raise KeyError(f"Expected key 'output' missing. Available keys: {list(result.keys())}")
+        # Invoke the agent service
+        # get a fresh client, then invoke
+        ai_msg = llm_with_tools.invoke([HumanMessage(content=user_input)])
+        result = ai_msg.content
+        # 🚀 Debugging: Print the raw agent response
+        print("Agent Response:", result)
 
-    return Command(
-        update={
-            "messages": [
-                HumanMessage(content=result["output"], name="REDIS")
-            ]
-        },
-        goto="supervisor",
-    )
+        return Command(
+            update={
+                "messages": [
+                    HumanMessage(content=result, name="REDIS")
+                ]
+            },
+            goto="supervisor",
+        )
 
 ##############################################
 # ────────────────────────────────────────────────────────
@@ -351,7 +360,7 @@ def make_supervisor_node(llm: BaseChatModel, members: list[str]):
     
     ### **Routing Rules**
     1. **how to create a good recipe** → Route to **RAG**.  
-    2. **Business related questions** → Route to **REDIS**.  
+    2. **show all formats for invoice numbers based on the record retrieved from  HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f"** → Route to **REDIS**.  
     3. **Do not call the same tool twice in succession** unless needed. If a tool fails, escalate to another tool if applicable.  
     4. **If no relevant tool is found, or conversation is complete, return:** {"next": "FINISH"}.
 
@@ -457,6 +466,27 @@ def print_message(response):
 
     return memory
 
+async def run_agent_async():
+    config = {"configurable": {"thread_id": "3", "user_id": "aojah1"}}
+    graph  = build_supervisor_agent()
+    question = [
+        HumanMessage(
+            content=(
+                "show all formats for invoice numbers based on the record retrieved "
+                "from HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'"
+            )
+        )
+    ]
+    str1 = "where is louisville, KY?"
+    str2 = "show all formats for invoice numbers based on the record retrieved from HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'"
+    question = {"role":"user", "content" : str2}
+
+    async for step in graph.astream(
+            {"messages": question},
+            config,
+    ):
+        print_message(step)
+        print("---")
 
 def run_chatbot():
     # Test WITH in -memory - NL2SQL - SQLLITE
@@ -481,5 +511,5 @@ def run_chatbot():
     #    chunk["messages"][-1].pretty_print()
 
 if __name__ == "__main__":
-    run_chatbot()
+    asyncio.run(run_agent_async())
 
