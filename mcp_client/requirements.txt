@@ -13,4 +13,6 @@ langsmith
 streamlit
 langchain_mcp_adapters
 openai-agents
+dotenv
+redis
 
