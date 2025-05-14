@@ -94,37 +94,95 @@ async def rag_node(state: State) -> Command[Literal["supervisor"]]:
 # ─── REDIS MCP NODE ────────────────────────────────
 MCP_SCRIPT = PROJECT_ROOT / "mcp_server" / "main.py"
 connections = {
-    "redis": {
+    "params": {
         "command": sys.executable,
         "args":[str(MCP_SCRIPT)],
         "env":{
             "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
             "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
-            "TRANSPORT": os.getenv("MCP_TRANSPORT","stdio"),
+            #"TRANSPORT": os.getenv("MCP_TRANSPORT","stdio"),
         }
     }
 }
-# ─── GLOBAL REDIS CLIENT & LLM-WITH-TOOLS ───────────────────────────
-redis_client = None
-llm_with_tools = None
+
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain.agents import initialize_agent, AgentType
+from langchain_core.messages import HumanMessage
+from langgraph.types import Command
+from langchain.agents import create_structured_chat_agent, AgentExecutor
+from langchain import hub
+from langchain.agents import create_structured_chat_agent, AgentExecutor
 
 async def redis_node(state: State) -> Command[Literal["supervisor"]]:
     inp = state["messages"][-1].content
     print("User Input Received (REDIS):", inp)
 
-    async with MultiServerMCPClient(connections) as client:
-        tools = client.get_tools()
-        if not tools:
-            raise RuntimeError("No MCP tools found")
-        llm_with_tools = llm.bind_tools(tools)
+    # 1) spin up the MCP subprocess as before
+    stdio_params = StdioServerParameters(
+        command=connections["params"]["command"],
+        args=connections["params"]["args"],
+        env=connections["params"]["env"],
+    )
+    async with stdio_client(stdio_params) as (r_stream, w_stream), \
+               ClientSession(r_stream, w_stream) as session:
+        await session.initialize()
 
-        ai: AIMessage = await llm_with_tools.ainvoke([HumanMessage(content=inp)])
-        print("Agent Response (REDIS):", ai.content)
+        # 2) load your Redis-backed tools
+        tools = await load_mcp_tools(session)
+        # 1) disable the JSON‐schema enforcement so string inputs are allowed
+        for t in tools:
+            if hasattr(t, "args_schema"):
+                t.args_schema = None
 
-        return Command(
-            update={"messages":[HumanMessage(content=ai.content,name="REDIS")]},
-            goto="FINISH"
+            # 2) wrap the sync run() to accept one arg
+            if hasattr(t, "run"):
+                base_run = t.run
+
+                def make_run(base):
+                    def run_wrapper(_):
+                        # drop the incoming arg and call the original
+                        return base()
+
+                    return run_wrapper
+
+                t.run = make_run(base_run)
+
+            # 3) wrap the async arun() to accept one arg
+            if hasattr(t, "arun"):
+                base_arun = t.arun
+
+                def make_arun(base):
+                    async def arun_wrapper(_):
+                        return await base()
+
+                    return arun_wrapper
+
+                t.arun = make_arun(base_arun)
+
+        # 3) create the structured-chat agent
+        prompt = hub.pull("hwchase17/structured-chat-agent")
+        agent = create_structured_chat_agent(llm, tools, prompt)
+        executor = AgentExecutor.from_agent_and_tools(
+            agent=agent,
+            tools=tools,
+            verbose=True,
+            return_direct=True,
         )
+
+        response: dict = await executor.ainvoke({"input": inp})
+        output = response["output"]
+        print("Agent Response (REDIS):", output)
+
+    # 6) hand it back to LangGraph
+    return Command(
+        update={"messages": [HumanMessage(content=output, name="REDIS")]},
+        goto="FINISH",
+    )
+
+
+
 
 # ─── SUPERVISOR ────────────────────────────────────
 def make_supervisor_node(llm: BaseChatModel, members: list[str]):
@@ -161,10 +219,10 @@ def build_graph():
 
 async def run_agent_async():
     graph = build_graph()
-    str1 = "show all formats for invoice numbers based on HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'"
+    str1 = "show all formats for invoice numbers where session:e5f6a932-6123-4a04-98e9-6b829904d27f"
     str2 = "where is Lousiville KY?"
     str3 = "show me all the tools from the redis cluster"
-    question = [HumanMessage(content=(str2))]
+    question = [HumanMessage(content=(str1))]
 
     async for step in graph.astream(
         {"messages":question},
