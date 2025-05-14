@@ -100,7 +100,7 @@ connections = {
         "env":{
             "REDIS_HOST": os.getenv("REDIS_HOST","127.0.0.1"),
             "REDIS_PORT": os.getenv("REDIS_PORT","6379"),
-            #"TRANSPORT": os.getenv("MCP_TRANSPORT","stdio"),
+            "TRANSPORT": os.getenv("MCP_TRANSPORT","stdio"),
         }
     }
 }
@@ -114,6 +114,8 @@ from langgraph.types import Command
 from langchain.agents import create_structured_chat_agent, AgentExecutor
 from langchain import hub
 from langchain.agents import create_structured_chat_agent, AgentExecutor
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 async def redis_node(state: State) -> Command[Literal["supervisor"]]:
     inp = state["messages"][-1].content
@@ -131,48 +133,34 @@ async def redis_node(state: State) -> Command[Literal["supervisor"]]:
 
         # 2) load your Redis-backed tools
         tools = await load_mcp_tools(session)
-        # 1) disable the JSON‐schema enforcement so string inputs are allowed
+
+        llm_with_tools = llm.bind_tools(tools)
+        # Preamble
+        preamble = """You are an assistant for question-answering tasks. Answer the question based upon your knowledge. Use facts while answering. Use three sentences maximum and keep the answer concise."""
+
+        # Prompt
+
+        def prompt(x):
+            return ChatPromptTemplate.from_messages(
+                [
+                    SystemMessage(content=preamble),
+                    HumanMessage(f"input: {x['input']}")
+                ]
+            )
+
+        # Chain
+        llm_chain = prompt | llm_with_tools | StrOutputParser()
+
+        response = await llm_chain.ainvoke({"input": inp})
+        print(response)
+
+        output = response
+
+        print(connections)
+        print("\nLoaded tools:")
         for t in tools:
-            if hasattr(t, "args_schema"):
-                t.args_schema = None
-
-            # 2) wrap the sync run() to accept one arg
-            if hasattr(t, "run"):
-                base_run = t.run
-
-                def make_run(base):
-                    def run_wrapper(_):
-                        # drop the incoming arg and call the original
-                        return base()
-
-                    return run_wrapper
-
-                t.run = make_run(base_run)
-
-            # 3) wrap the async arun() to accept one arg
-            if hasattr(t, "arun"):
-                base_arun = t.arun
-
-                def make_arun(base):
-                    async def arun_wrapper(_):
-                        return await base()
-
-                    return arun_wrapper
-
-                t.arun = make_arun(base_arun)
-
-        # 3) create the structured-chat agent
-        prompt = hub.pull("hwchase17/structured-chat-agent")
-        agent = create_structured_chat_agent(llm, tools, prompt)
-        executor = AgentExecutor.from_agent_and_tools(
-            agent=agent,
-            tools=tools,
-            verbose=True,
-            return_direct=True,
-        )
-
-        response: dict = await executor.ainvoke({"input": inp})
-        output = response["output"]
+            print("  🔧", t.name)
+        print()
         print("Agent Response (REDIS):", output)
 
     # 6) hand it back to LangGraph
@@ -180,9 +168,6 @@ async def redis_node(state: State) -> Command[Literal["supervisor"]]:
         update={"messages": [HumanMessage(content=output, name="REDIS")]},
         goto="FINISH",
     )
-
-
-
 
 # ─── SUPERVISOR ────────────────────────────────────
 def make_supervisor_node(llm: BaseChatModel, members: list[str]):
@@ -207,7 +192,7 @@ def make_supervisor_node(llm: BaseChatModel, members: list[str]):
     return supervisor_node
 
 # ─── BUILD GRAPH & RUNNER ─────────────────────────
-def build_graph():
+async def build_graph():
     g = StateGraph(State)
     g.add_node("supervisor", make_supervisor_node(llm, ["RAG","REDIS"]))
     g.add_node("RAG", rag_node)
@@ -218,11 +203,12 @@ def build_graph():
     return g.compile(checkpointer=cp, store=memory)
 
 async def run_agent_async():
-    graph = build_graph()
+    graph = await build_graph()
     str1 = "show all formats for invoice numbers where session:e5f6a932-6123-4a04-98e9-6b829904d27f"
     str2 = "where is Lousiville KY?"
     str3 = "show me all the tools from the redis cluster"
-    question = [HumanMessage(content=(str1))]
+    str4 = """HSET session:e5f6a932-6123-4a04-98e9-6b829904d27f record:10 Id "46" Vendor Name "GE Plastics" Invoice Number "ERS-13393-222295" Invoice Type "STANDARD" Amount Due "15,165.74" Past Due Days "98", Id "47" Vendor Name "Advanced Network Devices" Invoice Number "ERS-13365-221806" Invoice Type "STANDARD" Amount Due "22,076.14" Past Due Days "104", Id "48" Vendor Name "Advanced Network Devices" Invoice Number "ERS-13365-221805" Invoice Type "STANDARD" Amount Due "3,099.60" Past Due Days "105", Id "49" Vendor Name "Advanced Network Devices" Invoice Number "ERS-13373-221916" Invoice Type "STANDARD" Amount Due "3,099.60" Past Due Days "105", Id "50" Vendor Name "Advanced Network Devices" Invoice Number "ERS-13376-221922" Invoice Type "STANDARD" Amount Due "3,311.42" Past Due Days "105"""""
+    question = [HumanMessage(content=(str4))]
 
     async for step in graph.astream(
         {"messages":question},
