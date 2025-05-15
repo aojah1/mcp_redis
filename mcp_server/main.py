@@ -24,10 +24,11 @@ class RedisMCPServer:
         print(f"🔧 Starting Redis MCP Server (transport={MCP_TRANSPORT})")
 
         # if you want SSE on port 5678, do this:
-        if MCP_TRANSPORT == "sse":
-            mcp.run(transport="sse")
-        else:
-            mcp.run(transport="stdio")
+        #if MCP_TRANSPORT == "sse":
+        #    mcp.run(transport="sse")
+        #else:
+        #    mcp.run(transport="stdio")
+        mcp.run(transport=MCP_TRANSPORT)
 
 
 if __name__ == "__main__":
