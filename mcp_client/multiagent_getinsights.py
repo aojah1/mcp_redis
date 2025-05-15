@@ -16,6 +16,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_community.chat_models import ChatOCIGenAI
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from collections import deque
 
 # ─── init logging & env ─────────────────────────────
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -67,11 +68,14 @@ def rag_agent():
     tools = [Tool(name="Dummy_RAG_Tool",
                   func=lambda txt: f"Processed: {txt}",
                   description="Dummy RAG tool")]
+
+
     return initialize_agent(
         tools=tools,
         llm=llm,
         agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         verbose=True,
+        handle_parsing_errors=True
     )
 
 async def rag_node(state: State) -> Command[Literal["supervisor"]]:
@@ -140,7 +144,7 @@ async def redis_node(state: State) -> Command[Literal["supervisor"]]:
 # ─── SUPERVISOR ────────────────────────────────────
 def make_supervisor_node(llm: BaseChatModel, members: list[str]):
     system = SystemMessage(content="""
-        Route to RAG for general knowledge; to REDIS for invoice/db work.
+        Route to RAG for general knowledge; to REDIS for HGETALL/invoice/db work.
         Reply with JSON: {"next":"RAG"}, {"next":"REDIS"}, or {"next":"FINISH"}.
     """)
 
@@ -162,14 +166,19 @@ def make_supervisor_node(llm: BaseChatModel, members: list[str]):
 # ─── BUILD GRAPH & RUNNER ─────────────────────────
 async def build_graph():
     g = StateGraph(State)
-    g.add_node("supervisor", make_supervisor_node(llm, ["RAG","REDIS"]))
+
+    # 1) register the three nodes
+    g.add_node("supervisor", make_supervisor_node(llm, ["RAG", "REDIS"]))
     g.add_node("RAG", rag_node)
     g.add_node("REDIS", redis_node)
-    g.add_edge(START,"supervisor")
-    memory = InMemoryStore()
-    #cp = MemorySaver()
-    return g.compile()
-    #return g.compile(checkpointer=cp, store=memory)
+
+    g.add_edge(START, 'supervisor')
+    g.add_edge("supervisor", END)  # covers the {"next":"FINISH"} case
+    g.add_edge("RAG", END)
+    g.add_edge("REDIS", END)
+
+    # 3) compile without a checkpointer
+    return g.compile(store=InMemoryStore())
 
 
 # Extract content from response dictionary
@@ -185,6 +194,27 @@ def print_message(response):
 
     return memory
 
+# ─── simple REPL ────────────────────────────────────
+async def getinsights(max_history: int = 30):
+    graph = await build_graph()
+    history: deque[HumanMessage|AIMessage] = deque(maxlen=max_history)
+    print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
+    while True:
+        user_text = input("❓> ").strip()
+        if user_text.lower() in {"exit", "quit"}:
+            break
+        if not user_text:
+            continue
+        question = [HumanMessage(content=(user_text))]
+        #history.append(HumanMessage(content=user_text))
+        async for step in graph.astream(
+                {"role": "user", "messages": question},
+                {"configurable": {"thread_id": "3", "user_id": "aojah1"}}
+        ):
+            print_message(step)
+
+            #history.append(AIMessage(content=step))
+
 async def run_agent_async():
     graph = await build_graph()
     str1 = "show all formats for invoice numbers where session:e5f6a932-6123-4a04-98e9-6b829904d27f"
@@ -195,10 +225,10 @@ async def run_agent_async():
 
     async for step in graph.astream(
         {"role":"user", "messages":question},
-        #{"configurable":{"thread_id":"3","user_id":"aojah1"}}
+        {"configurable":{"thread_id":"3","user_id":"aojah1"}}
     ):
         print_message(step)
         print("---")
 
 if __name__=="__main__":
-    asyncio.run(run_agent_async())
+    asyncio.run(getinsights())
