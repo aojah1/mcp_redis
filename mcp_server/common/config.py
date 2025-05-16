@@ -4,7 +4,7 @@ import os
 
 load_dotenv()
 
-MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'stdio')
+MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'streamable-http')
 
 REDIS_CFG = {"host": os.getenv('REDIS_HOST', '127.0.0.1'),
              "port": int(os.getenv('REDIS_PORT',6379)),
