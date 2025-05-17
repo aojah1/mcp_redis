@@ -1,0 +1,14 @@
+[05/07/25 19:28:59] INFO     🔧 Initializing Redis MCP Server                                                                                           main.py:39
+                    INFO     ✅ RedisConnectionManager initialized                                                                                      main.py:47
+                    INFO     ✅ Imported module tools.server_management                                                                                 main.py:34
+                    INFO     ✅ Imported module tools.misc                                                                                              main.py:34
+                    INFO     ✅ Imported module tools.redis_query_engine                                                                                main.py:34
+                    INFO     ✅ Imported module tools.hash                                                                                              main.py:34
+                    INFO     ✅ Imported module tools.list                                                                                              main.py:34
+                    INFO     ✅ Imported module tools.string                                                                                            main.py:34
+                    INFO     ✅ Imported module tools.json                                                                                              main.py:34
+                    INFO     ✅ Imported module tools.sorted_set                                                                                        main.py:34
+                    INFO     ✅ Imported module tools.set                                                                                               main.py:34
+                    INFO     ✅ Imported module tools.stream                                                                                            main.py:34
+                    INFO     ✅ Imported module tools.pub_sub                                                                                           main.py:34
+                    INFO     🚀 Starting MCP loop with transport=stdio                                                                                  main.py:56
