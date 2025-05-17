@@ -15,4 +15,4 @@ RUN pip install --upgrade pip \
 # EXPOSE 8000
 
 # Run the MCP Server
-CMD ["python", "src/main.py"]
+CMD ["python", "main.py"]
