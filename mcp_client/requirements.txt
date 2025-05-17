@@ -15,4 +15,5 @@ langchain_mcp_adapters
 openai-agents
 dotenv
 redis
+langgraph-cli[inmem]
 

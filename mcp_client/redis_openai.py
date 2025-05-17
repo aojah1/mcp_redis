@@ -1,5 +1,5 @@
 # redis_assistant.py
-import asyncio, sys
+import asyncio, sys, os
 from pathlib import Path
 from agents import Agent, Runner
 from agents.mcp import MCPServerStdio
@@ -13,18 +13,6 @@ from langchain_community.chat_models import ChatOCIGenAI
 from langchain.prompts import PromptTemplate  # For creating prompts
 
 
-# Set your OCI credentials
-COMPARTMENT_ID = "ocid1.compartment.oc1..aaaaaaaau6esoygdsqxfz6iv3u7ghvosfskyvd6kroucemvyr5wzzjcw6aaa"
-AUTH_TYPE = "API_KEY" # The authentication type to use, e.g., API_KEY (default), SECURITY_TOKEN, INSTANCE_PRINCIPAL, RESOURCE_PRINCIPAL.
-CONFIG_PROFILE = "DEFAULT"
-
-# Service endpoint
-endpoint = "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com"
-#model_id = "meta.llama-3.3-70b-instruct"
-model_id = "ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyanrlpnq5ybfu5hnzarg7jomak3q6kyhkzjsl4qj24fyoq"
-# Create an OCI Cohere LLM instance
-# initialize interface
-
 THIS_DIR     = Path(__file__).resolve().parent
 PROJECT_ROOT = THIS_DIR.parent                 # repo root
 MAIN_FILE    = (PROJECT_ROOT / "mcp_server" / "main.py").resolve()
@@ -33,6 +21,32 @@ MAIN_FILE    = (PROJECT_ROOT / "mcp_server" / "main.py").resolve()
 # Load environment variables from .env file
 # ────────────────────────────────────────────────────────────────
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
+
+# ────────────────────────────────────────────────────────
+# 3) OCI GenAI configuration
+# ────────────────────────────────────────────────────────
+COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID")
+ENDPOINT       = os.getenv("OCI_GENAI_ENDPOINT")
+MODEL_ID       = os.getenv("OCI_GENAI_MODEL_ID")
+PROVIDER       = os.getenv("PROVIDER")
+AUTH_TYPE      = "API_KEY"
+CONFIG_PROFILE = "DEFAULT"
+
+
+def initialize_llm():
+    return ChatOCIGenAI(
+        model_id=MODEL_ID,
+        service_endpoint=ENDPOINT,
+        compartment_id=COMPARTMENT_ID,
+        provider=PROVIDER,
+        model_kwargs={
+            "temperature": 0.5,
+            "max_tokens": 512,
+            # remove any unsupported kwargs like citation_types
+        },
+        auth_type=AUTH_TYPE,
+        auth_profile=CONFIG_PROFILE,
+    )
 
 async def build_agent():
     """Launch the Redis MCP helper (src/main.py) and return the Agent."""
@@ -56,7 +70,7 @@ async def build_agent():
             "Redis. Store every question and answer in the Redis Stream "
             "app:logger."
         ),
-        #llm=llm,
+        llm=initialize_llm(),
         mcp_servers=[server],
     )
     #agent = create_react_agent(llm, mcp_server=[server])
