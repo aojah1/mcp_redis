@@ -10,7 +10,7 @@
     }
   },
   "graphs": {
-    "build_graph": "mcp_client/agent_supervisor.py:build_graph"
+     "build_graph": "assistant_agents/agent_getinsights.py:build_graph"
   },
   "dependencies": [
     "git+https://github.com/langchain-ai/langchain-mcp-adapters.git#egg=langchain_mcp_adapters",
