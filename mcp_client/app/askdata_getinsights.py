@@ -93,10 +93,7 @@ async def call_model(state: State):
         system_message = f"Summary of conversation earlier: {summary}"
 
         # Append summary to any newer messages
-        inp = [SystemMessage(content=system_message)] + state["messages"]
-
-    else:
-        inp = state["messages"]
+        state["messages"].insert(0, SystemMessage(content=system_message))
 
     response = await redis_node(state, llm)
 

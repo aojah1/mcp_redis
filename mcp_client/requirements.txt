@@ -16,4 +16,5 @@ openai-agents
 dotenv
 redis
 langgraph-cli[inmem]
+streamlit
 
