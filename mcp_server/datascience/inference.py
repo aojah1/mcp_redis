@@ -1,8 +1,9 @@
 import json
 
 import requests
-import oci
+import oci, os
 
+MODEL_DEPLOYMENT_URL = os.getenv("MODEL_DEPLOYMENT_URL")
 
 def get_auth():
     PROFILE_NAME = 'DEFAULT'
@@ -14,16 +15,17 @@ def get_auth():
     with open(token_file, 'r') as f:
       token = f.read()
     private_key = oci.signer.load_private_key_from_file(config[KEY_FILE_KEY])
-    signer = oci.auth.signers.SecurityTokenSigner(token, private_key) 
+    signer = oci.auth.signers.SecurityTokenSigner(token, private_key)
     return signer
 
 def predict():
-    predict_url = '<MODEL_DEPLOYMENT_URL>'
+    #predict_url = 'https://modeldeployment.us-chicago-1.oci.customer-oci.com/ocid1.datasciencemodeldeployment.oc1.us-chicago-1.amaaaaaawe6j4fqaekzh4uvermf7ttms4vp7uru2jzf7zi5v47pn5zvhhc7a/predict'
+    predict_url =MODEL_DEPLOYMENT_URL
     # list tools
     predict_body = json.dumps({"method":"tools/list","params":{"_meta":{"progressToken":1}},"jsonrpc":"2.0","id":1})
     # call tools
-    # predict_body = json.dumps({"method":"tools/call","params":{"name":"start-notification-stream","arguments":{"interval":7,"count":1,"caller":"nipun"},"_meta":{"progressToken":3}},"jsonrpc":"2.0","id":3})
-    
+    predict_body = json.dumps({"method":"tools/call","params":{"name":"start-notification-stream","arguments":{"interval":7,"count":1,"caller":"nipun"},"_meta":{"progressToken":3}},"jsonrpc":"2.0","id":3})
+
     predict_headers = {
         'Connection': 'keep-alive',
         'accept': 'application/json, text/event-stream',

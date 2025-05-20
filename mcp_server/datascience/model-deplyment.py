@@ -12,7 +12,7 @@ def get_auth():
     with open(token_file, 'r') as f:
       token = f.read()
     private_key = oci.signer.load_private_key_from_file(config[KEY_FILE_KEY])
-    signer = oci.auth.signers.SecurityTokenSigner(token, private_key) 
+    signer = oci.auth.signers.SecurityTokenSigner(token, private_key)
     return signer
 
 def get_datascience_client():
@@ -95,10 +95,3 @@ data_science_client.create_model_deployment(create_model_deployment_details = {
    "freeformTags": {},
     "definedTags": {}
 })
-
-
-
-
-
-
-

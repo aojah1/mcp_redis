@@ -1,6 +1,15 @@
 import os
+from pathlib import Path
 # ─── OCI LLM ──────────────────────────────────────────
 from langchain_community.chat_models import ChatOCIGenAI
+from dotenv import load_dotenv
+
+# ────────────────────────────────────────────────────────
+# 1) bootstrap paths + env + llm
+# ────────────────────────────────────────────────────────
+THIS_DIR     = Path(__file__).resolve().parent
+PROJECT_ROOT = THIS_DIR.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 #────────────────────────────────────────────────────────
 # OCI GenAI configuration

@@ -6,8 +6,9 @@ import asyncio, sys, os, logging
 from mcp_client.assistant_agents.agent_redis import redis_node
 from mcp_client.llm.oci_genai import initialize_llm
 from mcp_client.nemo_guardrails.main import rails_config
-from dotenv import load_dotenv
 from mcp_client.trace.langsmith import client
+
+from dotenv import load_dotenv
 
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -63,9 +64,9 @@ llm: BaseChatModel = initialize_llm() # This can be any LLM and need not be the 
 #────────────────────────────────────────────────────────────────
 # 2) Set up LangSmith for LangGraph development
 # ────────────────────────────────────────────────────────────────
-url = next(client.list_runs(project_name="anup-blog-post")).url
-print(url)
-print("LangSmith Tracing is Enabled")
+#url = next(client.list_runs(project_name="anup-blog-post")).url
+#print(url)
+#print("LangSmith Tracing is Enabled")
 
 # ────────────────────────────────────────────────────────────────
 # 3) Configure Nvidia Nemo Guardrails

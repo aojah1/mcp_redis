@@ -9,7 +9,7 @@ mcp = FastMCP(
     dependencies=["redis", "dotenv", "numpy"]
 )
 
-@mcp.custom_route("/health", methods=["GET"])
-async def health_check(request: Request) -> Response:
-    return JSONResponse({"status": "ok"})
+#@mcp.custom_route("/health", methods=["GET"])
+#async def health_check(request: Request) -> Response:
+#    return JSONResponse({"status": "ok"})
 

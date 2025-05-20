@@ -5,6 +5,8 @@ build/
 dist/
 wheels/
 *.egg-info
+mcp_client/predevwork
+mcp_client/assistant_agents/.langgraph_api
 
 # Virtual environments
 .venv

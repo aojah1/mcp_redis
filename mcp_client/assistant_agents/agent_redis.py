@@ -25,19 +25,18 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, Remo
 from langgraph.graph import MessagesState
 
 
-# ─── init logging & env ─────────────────────────────
+
+# ────────────────────────────────────────────────────────────────
+# 1) init logging & env
+#────────────────────────────────────────────────────────────────
 logging.getLogger("pydantic").setLevel(logging.WARN)
 logging.getLogger("langchain_core").setLevel(logging.WARN)
 
-# ────────────────────────────────────────────────────────
-# 1) bootstrap paths + env
-# ────────────────────────────────────────────────────────
 THIS_DIR     = Path(__file__).resolve().parent
 PROJECT_ROOT = THIS_DIR.parent.parent
-load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 # ────────────────────────────────────────────────────────────────
-# 4) Configure MCP Connections to SSE or STDIO
+# 2) Configure MCP Connections to SSE or STDIO
 # ────────────────────────────────────────────────────────────────
 
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
