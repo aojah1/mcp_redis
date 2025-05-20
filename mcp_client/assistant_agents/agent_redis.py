@@ -105,11 +105,20 @@ async def test_case():
     from mcp_client.llm.oci_genai import initialize_llm
 
     raw_state = {
-        "messages": [HumanMessage(content="get data for person:1001")]
+        "messages": [HumanMessage(content="which Invoice I should pay first based criteria such as highest amount due and highest past due date for 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'")]
     }
 
     answer = await redis_node(raw_state, initialize_llm())
-    print("Final Answer:", answer)
+    # find the last AIMessage
+    ai_reply = next(
+        (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
+        None
+    )
+
+    if ai_reply:
+        print("→ AI says:", ai_reply.content)
+    else:
+        print("→ (no AI reply found)")
 
 if __name__ == "__main__":
     asyncio.run(test_case())
