@@ -54,9 +54,9 @@ connections = {
             "command": sys.executable,
             "args": [str(MCP_SCRIPT)],
             "env": {
-                "REDIS_HOST": os.getenv("REDIS_HOST", "127.0.0.1"),
-                "REDIS_PORT": os.getenv("REDIS_PORT", "6379"),
-                "TRANSPORT": "stdio",
+                "REDIS_HOST": REDIS_HOST,
+                "REDIS_PORT": REDIS_PORT,
+                "TRANSPORT": MCP_TRANSPORT,
             },
         }
     }
