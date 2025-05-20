@@ -99,3 +99,17 @@ async def redis_node(state: State, llm: BaseModel):
 
     return {"messages": result["messages"]}
 
+# Test Cases -
+# now invoke the tool with the “state” envelope:
+async def test_case():
+    from mcp_client.llm.oci_genai import initialize_llm
+
+    raw_state = {
+        "messages": [HumanMessage(content="get data for person:1001")]
+    }
+
+    answer = await redis_node(raw_state, initialize_llm())
+    print("Final Answer:", answer)
+
+if __name__ == "__main__":
+    asyncio.run(test_case())
