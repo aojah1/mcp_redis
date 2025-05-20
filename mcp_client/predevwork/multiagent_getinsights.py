@@ -55,7 +55,7 @@ logging.getLogger("langchain_core").setLevel(logging.WARN)
 # 1) bootstrap paths + env
 # ────────────────────────────────────────────────────────
 THIS_DIR     = Path(__file__).resolve().parent
-PROJECT_ROOT = THIS_DIR.parent
+PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 #────────────────────────────────────────────────────────────────
@@ -220,13 +220,13 @@ async def redis_node(state: State) -> Command[Literal["supervisor"]]:
                 "No MCP tools found — make sure your server script is at "
                 f"{MCP_SCRIPT} and that it calls mcp.run(transport='stdio'|'sse')."
             )
-
+        print("MCP Tools Found:", tools)
         agent  = create_react_agent(model=initialize_llm(), tools=tools)
         # invoke with a list of messages, not a dict
         result = await agent.ainvoke({"role": "user","messages": inp})
         # restore this line so `text` actually exists:
         text = result.content if isinstance(result, AIMessage) else str(result)
-
+        print("Agent Response (Redis):", text)
     return Command(
         update={"messages": [HumanMessage(content=text, name="REDIS")]},
         goto="FINISH"

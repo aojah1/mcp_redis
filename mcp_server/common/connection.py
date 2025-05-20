@@ -16,8 +16,9 @@ class RedisConnectionManager:
     def get_connection(cls, decode_responses=True) -> Redis:
         if cls._instance is None:
             try:
-                redis_class: Type[Union[Redis, RedisCluster]] = redis.cluster.RedisCluster if REDIS_CFG["cluster_mode"] else redis.Redis
-                
+                redis_class: Type[Union[Redis, RedisCluster]] = redis.cluster.RedisCluster if REDIS_CFG[
+                    "cluster_mode"] else redis.Redis
+
                 cls._instance = redis_class(
                     host=REDIS_CFG["host"],
                     port=REDIS_CFG["port"],
