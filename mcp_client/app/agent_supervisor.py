@@ -55,6 +55,7 @@ from langgraph.types import Command
 
 from mcp_client.llm.oci_genai import initialize_llm
 from mcp_client.tools.tool_rag import rag_agent_service
+from mcp_client.assistant_agents.agent_redis import redis_node
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
@@ -83,35 +84,6 @@ from langgraph.checkpoint.memory import InMemorySaver
 checkpointer = InMemorySaver()
 
 # Create specialized agents
-@tool
-def add(a: float, b: float) -> float:
-    """
-    Adds two numbers and returns the result.
-
-    Args:
-        a (float): The first addend.
-        b (float): The second addend.
-
-    Returns:
-        float: The sum of `a` and `b`.
-    """
-    return a + b
-
-@tool
-def multiply(a: float, b: float) -> float:
-    """
-    Multiply two numbers and returns the result.
-
-    Args:
-        a (float): The first addend.
-        b (float): The second addend.
-
-    Returns:
-        float: The multiplication of `a` and `b`.
-    """
-    return a * b
-
-
 def agent_node(state, agent, name):
     result = agent.invoke(state)
 
@@ -120,16 +92,9 @@ def agent_node(state, agent, name):
         "messages": state["messages"] + result["messages"]
     }
 
-math_agent = create_react_agent(
-    model=initialize_llm(),
-    tools=[add, multiply],
-    #agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, - create custom agent if you want to use this feature
-    name="math_expert",
-    prompt="You are a math expert. Always use one tool at a time.",
-    checkpointer = checkpointer
-)
-
-math_node = functools.partial(agent_node, agent=math_agent, name="math")
+async def redis_expert(state):
+    response = await redis_node(state, initialize_llm())
+    return response
 
 rag_agent = create_react_agent(
         model=initialize_llm(),
@@ -144,7 +109,7 @@ search_node = functools.partial(agent_node, agent=rag_agent, name="search_expert
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
-members = ["math_expert", "search_expert"]
+members = ["redis_expert", "search_expert"]
 
 system_prompt = (
     """You are a supervisor tasked with managing a conversation between the following workers: {members}.
@@ -155,7 +120,7 @@ system_prompt = (
 
 options = ["FINISH"] + members
 class routeResponse(BaseModel):
-    next: Literal["math_expert", "search_expert", "FINISH"]
+    next: Literal["redis_expert", "search_expert", "FINISH"]
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -168,6 +133,17 @@ prompt = ChatPromptTemplate.from_messages(
         ),
     ]
 ).partial(options=str(options), members=", ".join(members))
+
+# ─── simple JSON extractor for router ───────────────
+def extract_json(text: str) -> dict:
+    for j in re.findall(r'\{.*?\}', text, re.DOTALL):
+        try:
+            obj = json.loads(j)
+            if "next" in obj or ("supervisor" in obj and "next" in obj["supervisor"]):
+                return obj.get("supervisor", obj)
+        except:
+            pass
+    return {"next":"FINISH"}
 
 def supervisor_node(state):
     """
@@ -184,17 +160,27 @@ def supervisor_node(state):
     if raw.startswith("```") and raw.endswith("```"):
         raw = raw[3:-3].strip()
 
-    # 3) parse JSON, or fallback to token
+    # 3) try parsing as JSON
+    nxt = None
     try:
         payload = json.loads(raw)
-        nxt     = payload.get("next")
+        nxt = payload.get("next")
     except json.JSONDecodeError:
-        nxt     = raw
+        # 4) fallback: regex to find one of the valid tokens
+        pattern = r'\b(?:' + '|'.join(options) + r')\b'
+        m = re.search(pattern, raw)
+        if m:
+            nxt = m.group(0)
 
-    # 4) return only the existing history + next‐step directive
+    # 5) if still empty or invalid, default to FINISH
+    if nxt not in options:
+        nxt = "FINISH"
+
+    print(f"Next message: {nxt}")
+
     return {
-        "messages": state["messages"],  # <-- do NOT append ai_msg here
-        "next":     nxt
+        "messages": state["messages"],  # leave history untouched
+        "next": nxt
     }
 
 
@@ -204,26 +190,26 @@ class AgentState(TypedDict):
 
 def build_graph():
     workflow = StateGraph(AgentState)
-    workflow.add_node("math_expert", math_node)
+    workflow.add_node("redis_expert", redis_expert)
     workflow.add_node("search_expert", search_node)
     workflow.add_node("supervisor", supervisor_node)
 
     # from langgraph.prebuilt import tools_condition
 
-    conditional_map = {k: k for k in members}  # members = ["math_expert","search_expert"]
+    conditional_map = {k: k for k in members}  # members = ["redis_expert","search_expert"]
     conditional_map["FINISH"] = END
     workflow.add_conditional_edges("supervisor", lambda x: x["next"], conditional_map)
     # entry point
     workflow.add_edge(START, "supervisor")
     # after any tool runs, go back to the supervisor
-    workflow.add_edge("math_expert", "supervisor")
-    workflow.add_edge("search_expert", "supervisor")
+    workflow.add_edge("redis_expert", END)
+    workflow.add_edge("search_expert", END)
 
     graph = workflow.compile()
     #graph = workflow.compile()
     return graph
 
-def get_data():
+async def get_data():
     app = build_graph()
     config = {"configurable": {"thread_id": "1"}}
     # return app
@@ -233,10 +219,19 @@ def get_data():
             break
         if not user_text:
             continue
-        result = app.invoke({
-            "messages": [{"role": "user", "content": user_text}]})
 
-        print("\n→ Supervisor final reply:", result["messages"][-1].content)
+        result = await app.ainvoke({"messages": [HumanMessage(content=user_text)]})
+
+        # find the last AIMessage
+        ai_reply = next(
+            (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+            None
+        )
+
+        if ai_reply:
+            print("→ AI says:", ai_reply.content)
+        else:
+            print("→ (no AI reply found)")
 
 if __name__ == "__main__":
-    get_data()
+    asyncio.run(get_data())
