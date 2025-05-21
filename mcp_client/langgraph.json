@@ -1,28 +1,9 @@
 {
-  "transport": {
-    "type": "stdio",
-    "command": "python3.13",
-    "args": ["mcp_server/main.py"],
-    "env": {
-      "REDIS_HOST": "127.0.0.1",
-      "REDIS_PORT": "6379",
-      "MCP_TRANSPORT": "stdio"
-    }
-  },
   "graphs": {
-     "build_graph": "mcp_client/app/askdata_getinsights.py:build_graph"
+    "build_graph": "mcp_client/app/askdata_getinsights.py:build_graph"
   },
   "dependencies": [
-    "git+https://github.com/langchain-ai/langchain-mcp-adapters.git#egg=langchain_mcp_adapters",
-    "langchain-openai>=0.1.8",
-    "langgraph>=0.0.51",
-    "fastmcp>=2.2.5",
-    "langchain>=0.1.20",
-    "openai>=1.23.0",
-    "oci==2.141.1",
-    "langchain_core==0.3.29",
-    "langchain-community==0.3.14",
-    "nemoguardrails"
+    "env: .env"
   ],
   "mounts": [
     {

@@ -3,7 +3,7 @@
 
 import asyncio, sys, os, logging
 
-from mcp_client.assistant_agents.agent_redis import redis_node
+from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
 from mcp_client.llm.oci_genai import initialize_llm
 from mcp_client.nemo_guardrails.main import rails_config
 from mcp_client.trace.langsmith import client
