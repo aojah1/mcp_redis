@@ -13,7 +13,7 @@ import tools.sorted_set
 import tools.set
 import tools.stream
 import tools.pub_sub
-from common.config import MCP_TRANSPORT
+from common.config import *
 
 
 class RedisMCPServer:
