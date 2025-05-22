@@ -1,6 +1,7 @@
 import streamlit as st
 import asyncio, sys
 from pathlib import Path
+import nest_asyncio
 
 # 🔧 Inject project root
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -8,25 +9,20 @@ sys.path.insert(0, str(project_root))
 
 from langgraph_sdk import get_client
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-import asyncio
-from pprint import pprint
-from mcp_client.app.api_getinsights import search
-
-URL = "http://127.0.0.1:2024"
-client = get_client(url=URL)
+import asyncio, os
+from mcp_client.app.api_getinsights import search, client
 
 
 async def invoke(prompt):
     input_message = HumanMessage(content=prompt)
-
     thread = await client.threads.create()
     print(f"ThreadId: '{thread['thread_id']}'")
+    assistant_id = await search()
 
-    last_content = None  # 🔧 Track last message
-
+    last_content = None
     async for part in client.runs.stream(
         thread["thread_id"],
-        assistant_id=await search(),
+        assistant_id=assistant_id,
         input={"messages": [input_message]},
         stream_mode="messages"
     ):
@@ -35,13 +31,16 @@ async def invoke(prompt):
             for item in data_list:
                 if "content" in item:
                     last_content = item["content"]
+    return last_content or "[No content found]"
 
-    return last_content or "[No content found]"  # ✅ Return result
-
-
-# Synchronous wrapper for Streamlit
 def ask_insight(prompt: str) -> str:
-    return asyncio.run(invoke(prompt))
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    return loop.run_until_complete(invoke(prompt))
 
 # Streamlit UI
 st.title("GetInsights GUI")

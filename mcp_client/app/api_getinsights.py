@@ -1,10 +1,19 @@
 from langgraph_sdk import get_client
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-import asyncio
-from pprint import pprint
+import asyncio, os
+from pathlib import Path
+from dotenv import load_dotenv
 
-URL = "http://127.0.0.1:2024"
-client = get_client(url=URL)
+# ────────────────────────────────────────────────────────
+# 1) bootstrap paths + env + llm
+# ────────────────────────────────────────────────────────
+THIS_DIR     = Path(__file__).resolve().parent
+PROJECT_ROOT = THIS_DIR.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
+
+LANGRAPH_DEV = os.environ.get("LANGRAPH_DEV")
+#URL = "http://64.181.208.129:2024"
+client = get_client(url=LANGRAPH_DEV)
 assistant_id = ""
 
 # Search all hosted graphs

@@ -17,4 +17,5 @@ dotenv
 redis
 langgraph-cli[inmem]
 streamlit
+nest_asyncio
 
