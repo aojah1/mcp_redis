@@ -12,7 +12,6 @@ logging.getLogger("pydantic").setLevel(logging.WARN)
 logging.getLogger("langchain_core").setLevel(logging.WARN)
 
 # ─── MCP helper & tools ────────────────────────────────
-from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -35,6 +34,7 @@ logging.getLogger("langchain_core").setLevel(logging.WARN)
 
 THIS_DIR     = Path(__file__).resolve().parent
 PROJECT_ROOT = THIS_DIR.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 # ────────────────────────────────────────────────────────────────
 # 2) Configure MCP Connections to SSE or STDIO
@@ -45,18 +45,24 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 # ────────────────────────────────────────────────────────────────
 # Configure MCP Connections to SSE (Streamable HTTP)
 # ────────────────────────────────────────────────────────────────
+MCP_TRANSPORT= os.getenv("MCP_TRANSPORT","stdio") #"stdio" #streamable_http" #stdio" #sse
+MCP_SSE_HOST=os.getenv("MCP_SSE_HOST","0.0.0.0")
+MCP_SSE_PORT=os.getenv("MCP_SSE_PORT","8000")
+
 
 connections = {
     "redis": {
-        "url": "http://0.0.0.0:8000/mcp",
-        "transport": "streamable_http",
+        "url": f"http://{MCP_SSE_HOST}:{MCP_SSE_PORT}/mcp",
+        "transport": MCP_TRANSPORT,
     }
 }
-
+print(connections)
 # Build your client
 client = MultiServerMCPClient(connections)
+print(client)
 class State(MessagesState):
     summary: str
+
 async def redis_node(state: State, llm: BaseModel):
     inp = state["messages"][-1].content
 
