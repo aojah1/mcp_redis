@@ -5,15 +5,14 @@ from pprint import pprint
 
 URL = "http://127.0.0.1:2024"
 client = get_client(url=URL)
-
-assistant_id="f9142976-9614-4f5f-9793-045acd655238"
+assistant_id = ""
 
 # Search all hosted graphs
 async def search():
-    assistants = await client.assistants.search()
+    assistants = await client.assistants.search(graph_id= "askdata_getinsights")
     assistant_id = assistants[0]["assistant_id"]
-    pprint(assistant_id)
 
+    print(f"Assistant ID: '{assistant_id}'")
     return assistant_id
 
 async def invoke():
@@ -44,8 +43,81 @@ async def invoke():
 
 
 ### Stream_mode=updates
+async def invoke(stream_mode: str):
+    input_message = HumanMessage(
+        content="which Invoice I should pay first based criteria such as highest amount due and highest past due date for 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'"
+    )
 
+    # Create a thread
+    thread = await client.threads.create()
+    print(f"ThreadId: '{thread['thread_id']}'")
+
+    last_content = None
+
+    async for part in client.runs.stream(
+            thread["thread_id"],
+            assistant_id=await search(),
+            input={"messages": [input_message]},
+            stream_mode=stream_mode):
+
+        event_type, data_list = part  # ✅ part is (event_type, [dict, dict, ...])
+
+        if isinstance(data_list, list):
+            for item in data_list:
+                if "content" in item:
+                    last_content = item["content"]  # ✅ store last one
+
+    print("\n🧠 Final streamed response part 1:\n")
+    print(last_content if last_content else "[No content found]")
+
+    input_message = HumanMessage(
+        content="What was the criteria used for the recommendation?"
+    )
+
+    print(f"ThreadId: '{thread['thread_id']}'")
+
+    last_content = None
+
+    async for part in client.runs.stream(
+            thread["thread_id"],
+            assistant_id=await search(),
+            input={"messages": [input_message]},
+            stream_mode=stream_mode):
+
+        event_type, data_list = part  # ✅ part is (event_type, [dict, dict, ...])
+
+        if isinstance(data_list, list):
+            for item in data_list:
+                if "content" in item:
+                    last_content = item["content"]  # ✅ store last one
+
+    print("\n🧠 Final streamed response part 2:\n")
+    print(last_content if last_content else "[No content found]")
+
+    input_message = HumanMessage(
+        content="what was the amount due on the invoice you reccommened to pay ? Just provide me the amount due and no other information."
+    )
+
+    print(f"ThreadId: '{thread['thread_id']}'")
+
+    last_content = None
+
+    async for part in client.runs.stream(
+            thread["thread_id"],
+            assistant_id=await search(),
+            input={"messages": [input_message]},
+            stream_mode=stream_mode):
+
+        event_type, data_list = part  # ✅ part is (event_type, [dict, dict, ...])
+
+        if isinstance(data_list, list):
+            for item in data_list:
+                if "content" in item:
+                    last_content = item["content"]  # ✅ store last one
+
+    print("\n🧠 Final streamed response part 3:\n")
+    print(last_content if last_content else "[No content found]")
 
 
 if __name__ == '__main__':
-    asyncio.run(invoke())
+    asyncio.run(invoke("messages"))

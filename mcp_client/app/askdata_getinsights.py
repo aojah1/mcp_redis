@@ -144,9 +144,7 @@ async def should_continue(state: State):
 # 5) BUILD GRAPH & RUNNER
 # ────────────────────────────────────────────────────────
 
-async def build_graph():
-
-
+async def askdata_getinsights():
     # Define a new graph
     workflow = StateGraph(State)
     workflow.add_node("conversation", call_model)
@@ -168,8 +166,8 @@ async def build_graph():
 # 6) REPL
 # ────────────────────────────────────────────────────────
 
-async def getinsights(max_history: int = 30):
-    graph = await build_graph()
+async def getinsights(max_history: int = 10):
+    graph = await askdata_getinsights()
     print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
     while True:
         user_text = input("❓> ").strip()

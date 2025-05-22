@@ -1,6 +1,6 @@
 {
   "graphs": {
-    "build_graph": "mcp_client/app/askdata_getinsights.py:build_graph"
+    "askdata_getinsights": "mcp_client/app/askdata_getinsights.py:askdata_getinsights"
   },
   "dependencies": [
     "env: .env"
