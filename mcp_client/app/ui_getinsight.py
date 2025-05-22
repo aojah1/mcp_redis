@@ -10,28 +10,8 @@ sys.path.insert(0, str(project_root))
 from langgraph_sdk import get_client
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 import asyncio, os
-from mcp_client.app.api_getinsights import search, client
+from mcp_client.app.api_getinsights import invoke
 
-
-async def invoke(prompt):
-    input_message = HumanMessage(content=prompt)
-    thread = await client.threads.create()
-    print(f"ThreadId: '{thread['thread_id']}'")
-    assistant_id = await search()
-
-    last_content = None
-    async for part in client.runs.stream(
-        thread["thread_id"],
-        assistant_id=assistant_id,
-        input={"messages": [input_message]},
-        stream_mode="messages"
-    ):
-        event_type, data_list = part
-        if isinstance(data_list, list):
-            for item in data_list:
-                if "content" in item:
-                    last_content = item["content"]
-    return last_content or "[No content found]"
 
 def ask_insight(prompt: str) -> str:
     try:
@@ -40,10 +20,10 @@ def ask_insight(prompt: str) -> str:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-    return loop.run_until_complete(invoke(prompt))
+    return loop.run_until_complete(invoke(stream_mode="messages", prompt= prompt))
 
 # Streamlit UI
-st.title("GetInsights GUI")
+st.title("GetInsights Test Harness")
 
 user_input = st.text_input("Enter your question:")
 if st.button("Get Insight"):
