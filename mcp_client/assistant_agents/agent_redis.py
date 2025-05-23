@@ -63,10 +63,10 @@ connections = {
 
 
 class State(MessagesState):
-    summary: str
+    messages: str
 
 async def redis_node(state: State, llm: BaseModel):
-    inp = state["messages"][-1].content
+    #inp = state["messages"][-1].content
 
     async with MultiServerMCPClient(connections) as client:
         tools = client.get_tools()
@@ -95,7 +95,7 @@ async def redis_node(state: State, llm: BaseModel):
             prompt=SYSTEM_PROMPT,
         )
         # invoke with a list of messages, not a dict
-        result = await agent.ainvoke({"messages": inp})
+        result = await agent.ainvoke({"messages": state["messages"]})
 
     return {"messages": result["messages"]}
 

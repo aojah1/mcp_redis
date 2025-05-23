@@ -1,6 +1,7 @@
 {
   "graphs": {
-    "askdata_getinsights": "mcp_client/app/askdata_getinsights.py:askdata_getinsights"
+    "askdata_getinsights": "mcp_client/app/askdata_getinsights.py:askdata_getinsights",
+    "agent_supervisor": "mcp_client/app/agent_supervisor.py:agent_supervisor"
   },
   "dependencies": [
     "env: .env"

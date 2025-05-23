@@ -64,7 +64,7 @@ class State(MessagesState):
     summary: str
 
 async def redis_node(state: State, llm: BaseModel):
-    inp = state["messages"][-1].content
+    #inp = state["messages"][-1].content
 
     # Start a session for the "redis" server
     async with client.session("redis") as session:
@@ -87,8 +87,7 @@ async def redis_node(state: State, llm: BaseModel):
             prompt=SYSTEM_PROMPT,
         )
 
-        result = await agent.ainvoke({"messages": inp})
-
+        result = await agent.ainvoke({"messages": state["messages"]})
     return {"messages": result["messages"]}
 
 # Test Cases -

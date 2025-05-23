@@ -55,7 +55,7 @@ from langgraph.types import Command
 
 from mcp_client.llm.oci_genai import initialize_llm
 from mcp_client.tools.tool_rag import rag_agent_service
-from mcp_client.assistant_agents.agent_redis import redis_node
+from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
@@ -188,7 +188,7 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], operator.add]
     next: str
 
-def build_graph():
+def agent_supervisor():
     workflow = StateGraph(AgentState)
     workflow.add_node("redis_expert", redis_expert)
     workflow.add_node("search_expert", search_node)
@@ -210,9 +210,8 @@ def build_graph():
     return graph
 
 async def get_data():
-    app = build_graph()
-    config = {"configurable": {"thread_id": "1"}}
-    # return app
+    app = agent_supervisor()
+    print("🔧   Supervisor — type 'exit' to quit\n")
     while True:
         user_text = input("❓> ").strip()
         if user_text.lower() in {"exit", "quit"}:
@@ -220,11 +219,12 @@ async def get_data():
         if not user_text:
             continue
 
-        result = await app.ainvoke({"messages": [HumanMessage(content=user_text)]})
+        answer = await app.ainvoke(
+            {"messages": [HumanMessage(content=user_text)]},  # ✅ FIXED
+        )
 
-        # find the last AIMessage
         ai_reply = next(
-            (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+            (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
             None
         )
 
@@ -232,6 +232,7 @@ async def get_data():
             print("→ AI says:", ai_reply.content)
         else:
             print("→ (no AI reply found)")
+
 
 if __name__ == "__main__":
     asyncio.run(get_data())
