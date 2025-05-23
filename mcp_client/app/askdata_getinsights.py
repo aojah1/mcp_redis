@@ -188,7 +188,7 @@ async def getinsights(max_history: int = 10):
 # ────────────────────────────────────────────────────────
 
 async def run_agent_async():
-    graph = await build_graph()
+    graph = await askdata_getinsights()
     # Test inputs
     str1 = "delete all record using hdel from redis db"
     str2 = "can you show more details of each invoice number with the format ERS-XXXXX-YYYYYY"
