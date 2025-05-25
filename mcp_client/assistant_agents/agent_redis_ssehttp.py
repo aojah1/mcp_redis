@@ -71,11 +71,21 @@ async def redis_node(state: State, llm: BaseModel):
         tools = await load_mcp_tools(session)
 
         SYSTEM_PROMPT = (
-            "You are a Redis-savvy assistant. "
-            "For reads: always use HGETALL. "
-            "For writes: use HSET (and EXPIRE when needed)."
-        )
+            """You are a Redis assistant with access to cached string values using the `get` tool. The `get` tool retrieves a Redis string value given its key.
 
+ONLY use this tool to retrieve data — no assumptions, and no external data sources.
+
+When a user provides a prompt, look for the key (usually a UUID format) and pass it directly to the `get` tool.
+
+Do NOT infer or transform the key. 
+
+Examples of valid user requests:
+- "Show Vendor name along with total amount due for key 543f817f-4d7a-415a-9ca6-14055b157d9d"
+- "show monthly totals of amount due for each vendor for the last 12 months by retrieving the data for key 0fb34d41-f0a7-4736-b84b-0ad75d70d0ed"
+
+"""
+        )
+#"The `get` tool retrieves a Redis string value given its key."
         messages = state["messages"]
         if not any(isinstance(m, SystemMessage) for m in messages):
             messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))

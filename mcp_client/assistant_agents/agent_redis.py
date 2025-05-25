@@ -78,8 +78,7 @@ async def redis_node(state: State, llm: BaseModel):
 
         SYSTEM_PROMPT = (
             "You are a Redis-savvy assistant. "
-            "For reads: always use HGETALL.\n"
-            "For writes: use HSET (and EXPIRE when needed)."
+            "only allow read operation with the best tool you have"
         )
 
         messages = state["messages"]

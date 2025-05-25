@@ -81,4 +81,4 @@ async def invoke(stream_mode: str, prompt):
 
 
 if __name__ == '__main__':
-    asyncio.run(invoke("messages"))
+    asyncio.run(invoke())

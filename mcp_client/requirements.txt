@@ -18,4 +18,5 @@ redis
 langgraph-cli[inmem]
 streamlit
 nest_asyncio
+langgraph-swarm>=0.0.7
 
