@@ -98,59 +98,114 @@ transfer_to_redis_expert = create_handoff_tool(
     description="Transfer user to the redis expert assistant that can search for invoice related information.",
 )
 
+# Create specialized agents
+def agent_node(state, agent, name):
+    result = agent.invoke(state)
 
+    # Return the complete messages array including the AIMessage
+    return {
+        "messages": state["messages"] + result["messages"]
+    }
 
-async def initialize_agents():
+async def redis_expert():
+    #inp = state["messages"][-1].content
+
+    # Start a session for the "redis" server
     async with client.session("redis") as session:
         tools = await load_mcp_tools(session)
 
         redis_expert_agent = create_react_agent(
-            model=initialize_llm(),
+            model=llm,
             tools=[*tools, transfer_to_rag_expert],
             name="redis_expert",
             prompt="You are a Redis assistant with access to cached string values using the `get` tool..."
         )
+        return redis_expert_agent
 
-        rag_expert_agent = create_react_agent(
-            model=initialize_llm(),
+
+rag_expert = create_react_agent(
+            model=llm,
             tools=[rag_agent_service, transfer_to_redis_expert],  # fill in actual tools if needed
             name="rag_expert",
             prompt="You are a rag expert assistant that can search for tax related information"
         )
 
-        return [redis_expert_agent, rag_expert_agent]
+#search_assistant = functools.partial(agent_node, agent=rag_expert, name="rag_expert")
 
+async def run_graph():
+    # Start Redis session safely
+    async with client.session("redis") as session:
+        tools = await load_mcp_tools(session)
+
+        redis_expert_agent = create_react_agent(
+            model=llm,
+            tools=[*tools, transfer_to_rag_expert],
+            name="redis_expert",
+            prompt="You are a Redis assistant with access to cached string values using the `get` tool..."
+        )
+
+        rag_expert = create_react_agent(
+            model=llm,
+            tools=[rag_agent_service, transfer_to_redis_expert],
+            name="rag_expert",
+            prompt="You are a rag expert assistant that can search for tax related information"
+        )
+
+        # Build swarm app inside session scope
+        builder = create_swarm(
+            [redis_expert_agent, rag_expert],
+            default_active_agent="rag_expert"
+        )
+        app = builder.compile()
+
+        print("🔧   Swarm — type 'exit' to quit\n")
+        while True:
+            user_text = input("❓> ").strip()
+            if user_text.lower() in {"exit", "quit"}:
+                break
+            if not user_text:
+                continue
+
+            result = await app.ainvoke({
+                "messages": [HumanMessage(content=user_text)]
+            })
+
+            ai_reply = next(
+                (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+                None
+            )
+            if ai_reply:
+                print("→ AI says:", ai_reply.content)
+            else:
+                print("→ (no AI reply found)")
 
 
 async def get_data():
-    redis_assistant, rag_assistant = await initialize_agents()
-
-    builder = create_swarm(
-        [redis_assistant, rag_assistant], default_active_agent="redis_expert"
-    )
-    app = builder.compile()
+    app = await run_graph()
 
     print("🔧   Swarm — type 'exit' to quit\n")
-    while True:
-        user_text = input("❓> ").strip()
-        if user_text.lower() in {"exit", "quit"}:
-            break
-        if not user_text:
-            continue
+    try:
+        while True:
+            user_text = input("❓> ").strip()
+            if user_text.lower() in {"exit", "quit"}:
+                break
+            if not user_text:
+                continue
 
-        answer = await app.ainvoke(
-            {"messages": [HumanMessage(content=user_text)]}
-        )
+            answer = await app.ainvoke({"messages": [HumanMessage(content=user_text)]})
 
-        ai_reply = next(
-            (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
-            None
-        )
+            ai_reply = next(
+                (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
+                None
+            )
 
-        if ai_reply:
-            print("→ AI says:", ai_reply.content)
-        else:
-            print("→ (no AI reply found)")
+            if ai_reply:
+                print("→ AI says:", ai_reply.content)
+            else:
+                print("→ (no AI reply found)")
+    finally:
+        if hasattr(app, "_close"):
+            await app._close()
 
 
 if __name__ == "__main__":
