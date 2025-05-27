@@ -83,7 +83,7 @@ async def redis_node(
 
         SYSTEM_PROMPT = """You are a Redis assistant. You have access to Redis keys using tools like `get` and `hgetall`. 
         - Use `get` to fetch string keys.
-        - Use `hgetall` when the key contains hash data (e.g., invoices or structured entries).
+        - Use `hgetall` when the key contains hash data.
         Do not make assumptions. Retrieve and summarize the exact value.
         """
 
@@ -100,7 +100,9 @@ async def redis_node(
         )
 
         result = await agent.ainvoke({"messages": state["messages"]})
-    return {"messages": result["messages"]}
+    return {
+        "messages": state["messages"] + result["messages"]
+    }
 
 # Test Cases -
 # now invoke the tool with the “state” envelope:

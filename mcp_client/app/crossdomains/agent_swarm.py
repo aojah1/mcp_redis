@@ -36,12 +36,11 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph_swarm import SwarmState, create_handoff_tool, add_active_agent_router
 from langgraph_swarm import create_handoff_tool, create_swarm
+from langgraph.graph import MessagesState
 
-# ───  LLM ──────────────────────────────────────────
+# ─── OCI LLM ──────────────────────────────────────────
 from langchain_community.chat_models import ChatOCIGenAI
-from langchain_openai import ChatOpenAI
 
 # ─── message types ────────────────────────────────────
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -58,7 +57,9 @@ from langgraph.types import Command
 
 from mcp_client.llm.oci_genai import initialize_llm
 from mcp_client.tools.tool_rag import rag_agent_service
-from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
+from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node, client
+
+from langchain_openai import ChatOpenAI
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
@@ -88,108 +89,42 @@ from langgraph.checkpoint.memory import InMemorySaver
 checkpointer = InMemorySaver()
 
 # Define handoff tools
-# @tool
-# def transfer_to_rag_expert():
-#     """
-#     Transfer user to the rag expert assistant that can search for tax related information
-#     :return: transfer_to_rag_expert
-#     """
-#     transfer_to_rag_expert_ = create_handoff_tool(
-#         agent_name="rag_expert",
-#         description="Transfer user to the rag expert assistant that can search for tax related information",
-#     )
-#
-#     print(f"✅ Transfer to: {transfer_to_rag_expert_}")
-#
-#     return transfer_to_rag_expert_
-
 transfer_to_rag_expert = create_handoff_tool(
-        agent_name="rag_expert",
-        description="Transfer user to the rag expert assistant that can search for tax related information",
-    )
-
-# @tool
-# def transfer_to_redis_expert():
-#     """
-#     Transfer user to the redis expert assistant that can search for invoice related information.
-#     :return: transfer_to_redis_expert
-#     """
-#     transfer_to_redis_expert_ = create_handoff_tool(
-#         agent_name="redis_expert",
-#         description="Transfer user to the redis expert assistant that can search for invoice related information.",
-#     )
-#
-#     print(f"✅ Transfer to: {transfer_to_redis_expert_}")
-#
-#     return transfer_to_redis_expert_
-
+    agent_name="rag_expert",
+    description="Transfer user to the rag expert assistant that can search for tax related information",
+)
 transfer_to_redis_expert = create_handoff_tool(
-        agent_name="redis_expert",
-        description="Transfer user to the redis expert assistant that can search for invoice related information.",
-    )
+    agent_name="redis_expert",
+    description="Transfer user to the redis expert assistant that can search for invoice related information.",
+)
 
-# Create specialized agents
-async def agent_node(state, agent, name):
-    print(f"[Node Invoked] → {name}")
-    result = await agent.ainvoke(state)
-    print(f"[{name} result] → {result}")
-    return {
-        "messages": state["messages"] + result["messages"]
-    }
+async def run_graph():
+    # Start Redis session safely
+    async with client.session("redis") as session:
+        tools = await load_mcp_tools(session)
 
-async def redis_expert(state):
-    response = await redis_node(state, llm, transfer_to_rag_expert)
-    return response
+        redis_expert_agent = create_react_agent(
+            model=llm,
+            tools=[*tools, transfer_to_rag_expert],
+            name="redis_expert",
+            prompt="You are a Redis assistant with access to cached string values using the `get` tool..."
+        )
 
-rag_agent = create_react_agent(
-        model=llm,
-        tools=[rag_agent_service, transfer_to_redis_expert],
-        name="rag_expert",
-        prompt="""You are a rag expert assistant that can search for tax related information.
-        You may also use the `transfer_to_rag_expert` tool when a user's question is about tax, income, or topics outside Redis scope.
-        """,
-    )
+        rag_expert = create_react_agent(
+            model=llm,
+            tools=[rag_agent_service, transfer_to_redis_expert],
+            name="rag_expert",
+            prompt="You are a rag expert assistant that can search for tax related information"
+        )
 
-# async def rag_expert(state):
-#     result = await rag_agent.ainvoke(state)
-#     return {
-#         "messages": state["messages"] + result["messages"]
-#     }
+        # Build swarm app inside session scope
+        builder = create_swarm(
+            [redis_expert_agent, rag_expert],
+            default_active_agent="rag_expert"
+        )
+        app = builder.compile()
 
-#redis_expert = functools.partial(agent_node, agent=redis_node, name="redis_expert")
-rag_expert = functools.partial(agent_node, agent=rag_agent, name="rag_expert")
-
-
-
-def agent_supervisor():
-    # Build the rest of the workflow
-    workflow = StateGraph(SwarmState)
-    workflow.add_node("redis_expert", redis_expert)
-    workflow.add_node("rag_expert", rag_expert)
-    workflow.add_node("tool", ToolNode)
-
-    workflow = add_active_agent_router(
-        builder=workflow,
-        route_to=["redis_expert", "rag_expert"],
-        default_active_agent="rag_expert",
-    )
-
-    app = workflow.compile()
-
-    # # Build swarm app inside session scope
-    # builder = create_swarm(
-    #     [redis_expert, rag_expert],
-    #     default_active_agent="rag_expert"
-    # )
-    # app = builder.compile()
-
-    return app
-
-async def get_data():
-    app = agent_supervisor()
-
-    print("🔧   Swarm — type 'exit' to quit\n")
-    try:
+        print("🔧   Swarm — type 'exit' to quit\n")
         while True:
             user_text = input("❓> ").strip()
             if user_text.lower() in {"exit", "quit"}:
@@ -197,21 +132,44 @@ async def get_data():
             if not user_text:
                 continue
 
-            answer = await app.ainvoke({"messages": [HumanMessage(content=user_text)]},config={"verbose": True})
+            result = await app.ainvoke({
+                "messages": [HumanMessage(content=user_text)]
+            })
 
             ai_reply = next(
-                (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
+                (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
                 None
             )
-
             if ai_reply:
                 print("→ AI says:", ai_reply.content)
             else:
                 print("→ (no AI reply found)")
-    finally:
-        if hasattr(app, "_close"):
-            await app._close()
+
+
+# async def get_data():
+#     app = await run_graph()
+#
+#     print("🔧   Swarm — type 'exit' to quit\n")
+#     while True:
+#         user_text = input("❓> ").strip()
+#         if user_text.lower() in {"exit", "quit"}:
+#             break
+#         if not user_text:
+#             continue
+#
+#         result = await app.ainvoke({
+#             "messages": [HumanMessage(content=user_text)]
+#         })
+#
+#         ai_reply = next(
+#             (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+#             None
+#         )
+#         if ai_reply:
+#             print("→ AI says:", ai_reply.content)
+#         else:
+#             print("→ (no AI reply found)")
 
 
 if __name__ == "__main__":
-    asyncio.run(get_data())
+    asyncio.run(run_graph())

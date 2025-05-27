@@ -36,11 +36,12 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph_swarm import SwarmState, create_handoff_tool, add_active_agent_router
 from langgraph_swarm import create_handoff_tool, create_swarm
-from langgraph.graph import MessagesState
 
-# ─── OCI LLM ──────────────────────────────────────────
+# ───  LLM ──────────────────────────────────────────
 from langchain_community.chat_models import ChatOCIGenAI
+from langchain_openai import ChatOpenAI
 
 # ─── message types ────────────────────────────────────
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -57,9 +58,7 @@ from langgraph.types import Command
 
 from mcp_client.llm.oci_genai import initialize_llm
 from mcp_client.tools.tool_rag import rag_agent_service
-from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node, client
-
-from langchain_openai import ChatOpenAI
+from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
@@ -89,99 +88,72 @@ from langgraph.checkpoint.memory import InMemorySaver
 checkpointer = InMemorySaver()
 
 # Define handoff tools
+
 transfer_to_rag_expert = create_handoff_tool(
-    agent_name="rag_expert",
-    description="Transfer user to the rag expert assistant that can search for tax related information",
-)
+        agent_name="rag_expert",
+        description="Transfer user to the rag expert assistant that can search for tax related information",
+    )
+
 transfer_to_redis_expert = create_handoff_tool(
-    agent_name="redis_expert",
-    description="Transfer user to the redis expert assistant that can search for invoice related information.",
-)
+        agent_name="redis_expert",
+        description="Transfer user to the redis expert assistant that can search for invoice related information.",
+    )
 
 # Create specialized agents
-def agent_node(state, agent, name):
-    result = agent.invoke(state)
-
-    # Return the complete messages array including the AIMessage
+async def agent_node(state, agent, name):
+    print(f"[Node Invoked] → {name}")
+    result = await agent.ainvoke(state)
     return {
         "messages": state["messages"] + result["messages"]
     }
 
-async def redis_expert():
-    #inp = state["messages"][-1].content
+async def redis_node_(state, name):
+    print(f"[Node Invoked] → {name}")
+    result = await redis_node(state, llm, transfer_to_rag_expert)
+    return {
+        "messages": state["messages"] + result["messages"]
+    }
 
-    # Start a session for the "redis" server
-    async with client.session("redis") as session:
-        tools = await load_mcp_tools(session)
+rag_agent = create_react_agent(
+        model=llm,
+        tools=[rag_agent_service, transfer_to_redis_expert],
+        name="rag_expert",
+        prompt="""You are a rag expert assistant that can search for tax related information.
+        You may also use the `transfer_to_rag_expert` tool when a user's question is about tax, income, or topics outside Redis scope.
+        """,
+    )
 
-        redis_expert_agent = create_react_agent(
-            model=llm,
-            tools=[*tools, transfer_to_rag_expert],
-            name="redis_expert",
-            prompt="You are a Redis assistant with access to cached string values using the `get` tool..."
-        )
-        return redis_expert_agent
+redis_expert = functools.partial(redis_node_, name="redis_expert")
+rag_expert = functools.partial(agent_node, agent=rag_agent, name="rag_expert")
 
 
-rag_expert = create_react_agent(
-            model=llm,
-            tools=[rag_agent_service, transfer_to_redis_expert],  # fill in actual tools if needed
-            name="rag_expert",
-            prompt="You are a rag expert assistant that can search for tax related information"
-        )
 
-#search_assistant = functools.partial(agent_node, agent=rag_expert, name="rag_expert")
+def agent_supervisor():
+    # Build the rest of the workflow
+    workflow = StateGraph(SwarmState)
+    workflow.add_node("redis_expert", redis_expert)
+    workflow.add_node("rag_expert", rag_expert)
+    workflow.add_node("tool", ToolNode)
 
-async def run_graph():
-    # Start Redis session safely
-    async with client.session("redis") as session:
-        tools = await load_mcp_tools(session)
+    workflow = add_active_agent_router(
+        builder=workflow,
+        route_to=["redis_expert", "rag_expert"],
+        default_active_agent="rag_expert",
+    )
 
-        redis_expert_agent = create_react_agent(
-            model=llm,
-            tools=[*tools, transfer_to_rag_expert],
-            name="redis_expert",
-            prompt="You are a Redis assistant with access to cached string values using the `get` tool..."
-        )
+    app = workflow.compile()
 
-        rag_expert = create_react_agent(
-            model=llm,
-            tools=[rag_agent_service, transfer_to_redis_expert],
-            name="rag_expert",
-            prompt="You are a rag expert assistant that can search for tax related information"
-        )
+    # # Build swarm app inside session scope
+    # builder = create_swarm(
+    #     [redis_expert, rag_expert],
+    #     default_active_agent="rag_expert"
+    # )
+    # app = builder.compile()
 
-        # Build swarm app inside session scope
-        builder = create_swarm(
-            [redis_expert_agent, rag_expert],
-            default_active_agent="rag_expert"
-        )
-        app = builder.compile()
-
-        print("🔧   Swarm — type 'exit' to quit\n")
-        while True:
-            user_text = input("❓> ").strip()
-            if user_text.lower() in {"exit", "quit"}:
-                break
-            if not user_text:
-                continue
-
-            result = await app.ainvoke({
-                "messages": [HumanMessage(content=user_text)]
-            })
-
-            ai_reply = next(
-                (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
-                None
-            )
-            if ai_reply:
-                print("→ AI says:", ai_reply.content)
-            else:
-                print("→ (no AI reply found)")
-
+    return app
 
 async def get_data():
-    app = await run_graph()
+    app = agent_supervisor()
 
     print("🔧   Swarm — type 'exit' to quit\n")
     try:
@@ -192,7 +164,7 @@ async def get_data():
             if not user_text:
                 continue
 
-            answer = await app.ainvoke({"messages": [HumanMessage(content=user_text)]})
+            answer = await app.ainvoke({"messages": [HumanMessage(content=user_text)]},config={"verbose": True})
 
             ai_reply = next(
                 (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
