@@ -6,6 +6,7 @@ from pathlib import Path
 from collections import deque
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from typing import Optional
 
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -22,6 +23,7 @@ from langgraph.prebuilt import create_react_agent
 # ─── message types ────────────────────────────────────
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, RemoveMessage
 from langgraph.graph import MessagesState
+from langchain_core.tools import BaseTool
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
@@ -63,28 +65,28 @@ print(client)
 class State(MessagesState):
     summary: str
 
-async def redis_node(state: State, llm: BaseModel):
+async def redis_node(
+    state: State,
+    llm: BaseModel,
+    transfer_to_agent_expert: Optional[BaseTool] = None
+):
     #inp = state["messages"][-1].content
 
     # Start a session for the "redis" server
     async with client.session("redis") as session:
         tools = await load_mcp_tools(session)
+        if transfer_to_agent_expert is not None:
+            tools = [*tools, transfer_to_agent_expert]
 
-        SYSTEM_PROMPT = (
-            """You are a Redis assistant with access to cached string values using the `get` tool. The `get` tool retrieves a Redis string value given its key.
+        # for tool in tools:
+        #     print(f"✅ Loaded tool: {tool.name}")
 
-ONLY use this tool to retrieve data — no assumptions, and no external data sources.
+        SYSTEM_PROMPT = """You are a Redis assistant. You have access to Redis keys using tools like `get` and `hgetall`. 
+        - Use `get` to fetch string keys.
+        - Use `hgetall` when the key contains hash data (e.g., invoices or structured entries).
+        Do not make assumptions. Retrieve and summarize the exact value.
+        """
 
-When a user provides a prompt, look for the key (usually a UUID format) and pass it directly to the `get` tool.
-
-Do NOT infer or transform the key. 
-
-Examples of valid user requests:
-- "Show Vendor name along with total amount due for key 543f817f-4d7a-415a-9ca6-14055b157d9d"
-- "show monthly totals of amount due for each vendor for the last 12 months by retrieving the data for key 0fb34d41-f0a7-4736-b84b-0ad75d70d0ed"
-
-"""
-        )
 #"The `get` tool retrieves a Redis string value given its key."
         messages = state["messages"]
         if not any(isinstance(m, SystemMessage) for m in messages):
@@ -106,7 +108,7 @@ async def test_case():
     from mcp_client.llm.oci_genai import initialize_llm
 
     raw_state = {
-        "messages": [HumanMessage(content="which Invoice I should pay first based criteria such as highest amount due and highest past due date for 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'")]
+        "messages": [HumanMessage(content="summarize invoice data  based on retrieved form the redis db using  HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'")]
     }
 
     answer = await redis_node(raw_state, initialize_llm())
