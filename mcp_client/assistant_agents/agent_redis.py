@@ -32,7 +32,7 @@ from langgraph.graph import MessagesState
 logging.getLogger("pydantic").setLevel(logging.WARN)
 logging.getLogger("langchain_core").setLevel(logging.WARN)
 
-THIS_DIR     = Path(__file__).resolve().parent
+THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
 
 # ────────────────────────────────────────────────────────────────

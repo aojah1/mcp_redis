@@ -11,7 +11,7 @@ from oci.generative_ai_agent_runtime.models import CreateSessionDetails
 from dotenv import load_dotenv
 from pathlib import Path
 
-THIS_DIR     = Path(__file__).resolve().parent
+THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 

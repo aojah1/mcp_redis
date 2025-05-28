@@ -28,16 +28,18 @@ from langchain_core.tools import BaseTool
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
+from llm.oci_genai import initialize_llm
+
 # ────────────────────────────────────────────────────────────────
 # 1) init logging & env
 #────────────────────────────────────────────────────────────────
 logging.getLogger("pydantic").setLevel(logging.WARN)
 logging.getLogger("langchain_core").setLevel(logging.WARN)
 
-THIS_DIR     = Path(__file__).resolve().parent
+THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
-
+print(PROJECT_ROOT)
 # ────────────────────────────────────────────────────────────────
 # 2) Configure MCP Connections to SSE or STDIO
 # ────────────────────────────────────────────────────────────────
@@ -107,7 +109,7 @@ async def redis_node(
 # Test Cases -
 # now invoke the tool with the “state” envelope:
 async def test_case():
-    from mcp_client.llm.oci_genai import initialize_llm
+
 
     raw_state = {
         "messages": [HumanMessage(content="summarize invoice data  based on retrieved form the redis db using  HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'")]

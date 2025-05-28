@@ -55,16 +55,14 @@ from typing_extensions import TypedDict
 import langgraph.prebuilt.chat_agent_executor as _exec
 from oci.generative_ai_inference.models import CohereResponseTextFormat
 from langgraph.types import Command
-
-from mcp_client.llm.oci_genai import initialize_llm
-from mcp_client.tools.tool_rag import rag_agent_service
-from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
+from tools.tool_rag import rag_agent_service
+from assistant_agents.agent_redis_ssehttp import redis_node
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
 # ────────────────────────────────────────────────────────
-THIS_DIR     = Path(__file__).resolve().parent
-PROJECT_ROOT = THIS_DIR.parent
+THIS_DIR     = Path(__file__).resolve()
+PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 #────────────────────────────────────────────────────────────────
@@ -127,20 +125,19 @@ redis_expert = functools.partial(redis_node_, name="redis_expert")
 rag_expert = functools.partial(agent_node, agent=rag_agent, name="rag_expert")
 
 
-
-def agent_supervisor():
+def run_swarm():
     # Build the rest of the workflow
     workflow = StateGraph(SwarmState)
-    workflow.add_node("redis_expert", redis_expert)
-    workflow.add_node("rag_expert", rag_expert)
-    workflow.add_node("tool", ToolNode)
+    workflow.add_node("redis_expert", redis_expert, destinations=("rag_expert",))
+    workflow.add_node("rag_expert", rag_expert, destinations=("redis_expert",))
+    workflow.add_node("tool", ToolNode) # --> Off topic node
 
     workflow = add_active_agent_router(
         builder=workflow,
         route_to=["redis_expert", "rag_expert"],
         default_active_agent="rag_expert",
-    )
 
+    )
     app = workflow.compile()
 
     # # Build swarm app inside session scope
@@ -153,7 +150,7 @@ def agent_supervisor():
     return app
 
 async def get_data():
-    app = agent_supervisor()
+    app = run_swarm()
 
     print("🔧   Swarm — type 'exit' to quit\n")
     try:

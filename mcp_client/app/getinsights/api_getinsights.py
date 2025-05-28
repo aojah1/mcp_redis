@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env + llm
 # ────────────────────────────────────────────────────────
-THIS_DIR     = Path(__file__).resolve().parent
+THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 

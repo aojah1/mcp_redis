@@ -53,15 +53,15 @@ import langgraph.prebuilt.chat_agent_executor as _exec
 from oci.generative_ai_inference.models import CohereResponseTextFormat
 from langgraph.types import Command
 
-from mcp_client.llm.oci_genai import initialize_llm
-from mcp_client.tools.tool_rag import rag_agent_service
-from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
+from llm.oci_genai import initialize_llm
+from tools.tool_rag import rag_agent_service
+from assistant_agents.agent_redis_ssehttp import redis_node
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
 # ────────────────────────────────────────────────────────
-THIS_DIR     = Path(__file__).resolve().parent
-PROJECT_ROOT = THIS_DIR.parent
+THIS_DIR     = Path(__file__).resolve()
+PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 #────────────────────────────────────────────────────────────────

@@ -4,13 +4,14 @@ from pathlib import Path
 import nest_asyncio
 
 # 🔧 Inject project root
-project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(project_root))
+THIS_DIR     = Path(__file__).resolve()
+PROJECT_ROOT = THIS_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from langgraph_sdk import get_client
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 import asyncio, os
-from mcp_client.app.api_getinsights import invoke
+from getinsights.api_getinsights import invoke
 
 
 def ask_insight(prompt: str) -> str:

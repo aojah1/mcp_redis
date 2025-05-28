@@ -1,7 +1,7 @@
 from common.connection import RedisConnectionManager
 from redis.exceptions import RedisError
 from common.server import mcp
-
+import base64
 
 @mcp.tool()
 async def set(key: str, value: str, expiration: int = None) -> str:
@@ -38,8 +38,12 @@ async def get(key: str) -> str:
     """
     try:
         r = RedisConnectionManager.get_connection()
-        value = r.get(key)
-        return value if value else f"Key {key} does not exist"
+        print(f'get keys {key}')
+        return f'get keys {key}'
+        #raw = r.get(key)
+        #value = raw.decode('utf-8')
+        #return "" if raw is None else base64.b64encode(raw).decode("ascii")
+        #return value if value else f"Key {key} does not exist"
     except RedisError as e:
         return f"Error retrieving key {key}: {str(e)}"
 

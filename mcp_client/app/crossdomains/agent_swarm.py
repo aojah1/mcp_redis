@@ -55,17 +55,16 @@ import langgraph.prebuilt.chat_agent_executor as _exec
 from oci.generative_ai_inference.models import CohereResponseTextFormat
 from langgraph.types import Command
 
-from mcp_client.llm.oci_genai import initialize_llm
-from mcp_client.tools.tool_rag import rag_agent_service
-from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node, client
+from tools.tool_rag import rag_agent_service
+from assistant_agents.agent_redis_ssehttp import redis_node, client
 
 from langchain_openai import ChatOpenAI
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
 # ────────────────────────────────────────────────────────
-THIS_DIR     = Path(__file__).resolve().parent
-PROJECT_ROOT = THIS_DIR.parent
+THIS_DIR     = Path(__file__).resolve()
+PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 #────────────────────────────────────────────────────────────────
@@ -123,27 +122,27 @@ async def run_graph():
             default_active_agent="rag_expert"
         )
         app = builder.compile()
-
-        print("🔧   Swarm — type 'exit' to quit\n")
-        while True:
-            user_text = input("❓> ").strip()
-            if user_text.lower() in {"exit", "quit"}:
-                break
-            if not user_text:
-                continue
-
-            result = await app.ainvoke({
-                "messages": [HumanMessage(content=user_text)]
-            })
-
-            ai_reply = next(
-                (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
-                None
-            )
-            if ai_reply:
-                print("→ AI says:", ai_reply.content)
-            else:
-                print("→ (no AI reply found)")
+        return app
+        # print("🔧   Swarm — type 'exit' to quit\n")
+        # while True:
+        #     user_text = input("❓> ").strip()
+        #     if user_text.lower() in {"exit", "quit"}:
+        #         break
+        #     if not user_text:
+        #         continue
+        #
+        #     result = await app.ainvoke({
+        #         "messages": [HumanMessage(content=user_text)]
+        #     })
+        #
+        #     ai_reply = next(
+        #         (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
+        #         None
+        #     )
+        #     if ai_reply:
+        #         print("→ AI says:", ai_reply.content)
+        #     else:
+        #         print("→ (no AI reply found)")
 
 
 # async def get_data():

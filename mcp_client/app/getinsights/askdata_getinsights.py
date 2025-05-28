@@ -3,10 +3,10 @@
 
 import asyncio, sys, os, logging
 
-from mcp_client.assistant_agents.agent_redis_ssehttp import redis_node
-from mcp_client.llm.oci_genai import initialize_llm
-from mcp_client.nemo_guardrails.main import rails_config
-from mcp_client.trace.langsmith import client
+from assistant_agents.agent_redis_ssehttp import redis_node
+from llm.oci_genai import initialize_llm
+from nemo_guardrails.main import rails_config
+#from trace.langsmith import client
 
 from dotenv import load_dotenv
 
@@ -55,7 +55,7 @@ logging.getLogger("langchain_core").setLevel(logging.WARN)
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env + llm
 # ────────────────────────────────────────────────────────
-THIS_DIR     = Path(__file__).resolve().parent
+THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 

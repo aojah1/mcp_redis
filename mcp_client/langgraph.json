@@ -1,7 +1,9 @@
 {
   "graphs": {
-    "askdata_getinsights": "mcp_client/app/askdata_getinsights.py:askdata_getinsights",
-    "agent_supervisor": "mcp_client/app/agent_supervisor.py:agent_supervisor"
+    "askdata_getinsights": "app/getinsights/askdata_getinsights.py:askdata_getinsights",
+    "agent_supervisor": "app/crossdomains/agent_supervisor.py:agent_supervisor",
+    "agent_supervisor_swarm": "app/crossdomains/agent_supervisor_swarm.py:run_swarm",
+    "agent_swarm": "app/crossdomains/agent_swarm.py:run_graph"
   },
   "dependencies": [
     "env: .env"
