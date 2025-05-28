@@ -83,11 +83,16 @@ async def redis_node(
         # for tool in tools:
         #     print(f"✅ Loaded tool: {tool.name}")
 
-        SYSTEM_PROMPT = """You are a Redis assistant. You have access to Redis keys using tools like `get` and `hgetall`. 
-        - Use `get` to fetch string keys.
-        - Use `hgetall` when the key contains hash data.
-        Do not make assumptions. Retrieve and summarize the exact value.
-        """
+        # SYSTEM_PROMPT = """You are a Redis assistant. You have access to Redis keys using tools like `get`.
+        # - Use `get` to fetch string keys.
+        # Do not make assumptions. Retrieve and summarize the exact value.
+        # """
+
+        SYSTEM_PROMPT = """You are a Redis assistant. You ONLY have access to Redis keys using tools `getdf`.
+               Only Use `getdf` to retrieve data from Redis based on the key provided.
+               Do not change or modify the key, use it as received. 
+               Do not make assumptions. Retrieve and summarize the exact returned data.
+               """
 
 #"The `get` tool retrieves a Redis string value given its key."
         messages = state["messages"]
@@ -112,10 +117,11 @@ async def test_case():
 
 
     raw_state = {
-        "messages": [HumanMessage(content="summarize invoice data  based on retrieved form the redis db using  HGETALL 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'")]
+        "messages": [HumanMessage(content="Get trends from the data -  by retrieving using tool 'getdf' for key 02e4b9e5-5e92-4836-b589-7536266c7baa")]
     }
 
     answer = await redis_node(raw_state, initialize_llm())
+    print(answer)
     # find the last AIMessage
     ai_reply = next(
         (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),

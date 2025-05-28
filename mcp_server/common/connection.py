@@ -24,13 +24,13 @@ class RedisConnectionManager:
                     port=REDIS_CFG["port"],
                     username=REDIS_CFG["username"],
                     password=REDIS_CFG["password"],
+                    decode_responses=REDIS_CFG["decode_responses"],
                     ssl=REDIS_CFG["ssl"],
                     ssl_ca_path=REDIS_CFG["ssl_ca_path"],
                     ssl_keyfile=REDIS_CFG["ssl_keyfile"],
                     ssl_certfile=REDIS_CFG["ssl_certfile"],
                     ssl_cert_reqs=REDIS_CFG["ssl_cert_reqs"],
                     ssl_ca_certs=REDIS_CFG["ssl_ca_certs"],
-                    decode_responses=decode_responses,
                     lib_name=f"redis-py(mcp-server_v{__version__})",
                     **({"max_connections_per_node": 10} if REDIS_CFG["cluster_mode"] else {"max_connections": 10})
                 )
