@@ -87,14 +87,14 @@ checkpointer = InMemorySaver()
 
 # Define handoff tools
 
-transfer_to_rag_expert = create_handoff_tool(
-        agent_name="rag_expert",
-        description="Transfer user to the rag expert assistant that can search for tax related information",
+transfer_to_tax_expert = create_handoff_tool(
+        agent_name="tax_expert",
+        description="Transfer user to the tax expert assistant that can search for tax related information",
     )
 
-transfer_to_redis_expert = create_handoff_tool(
-        agent_name="redis_expert",
-        description="Transfer user to the redis expert assistant that can search for invoice related information.",
+transfer_to_invoice_expert = create_handoff_tool(
+        agent_name="invoice_expert",
+        description="Transfer user to the invoice expert assistant that can search for invoice related information.",
     )
 
 # Create specialized agents
@@ -107,43 +107,43 @@ async def agent_node(state, agent, name):
 
 async def redis_node_(state, name):
     print(f"[Node Invoked] → {name}")
-    result = await redis_node(state, llm, transfer_to_rag_expert)
+    result = await redis_node(state, llm, transfer_to_tax_expert)
     return {
         "messages": state["messages"] + result["messages"]
     }
 
 rag_agent = create_react_agent(
         model=llm,
-        tools=[rag_agent_service, transfer_to_redis_expert],
-        name="rag_expert",
-        prompt="""You are a rag expert assistant that can search for tax related information.
-        You may also use the `transfer_to_rag_expert` tool when a user's question is about tax, income, or topics outside Redis scope.
+        tools=[rag_agent_service, transfer_to_invoice_expert],
+        name="tax_expert",
+        prompt="""You are a tax expert assistant that can search for tax related information.
+        You may also use the `transfer_to_invoice_expert` tool when a user's question is about Invoice or topics outside Tax scope.
         """,
     )
 
-redis_expert = functools.partial(redis_node_, name="redis_expert")
-rag_expert = functools.partial(agent_node, agent=rag_agent, name="rag_expert")
+invoice_expert = functools.partial(redis_node_, name="invoice_expert")
+tax_expert = functools.partial(agent_node, agent=rag_agent, name="tax_expert")
 
 
 def run_swarm():
     # Build the rest of the workflow
     workflow = StateGraph(SwarmState)
-    workflow.add_node("redis_expert", redis_expert, destinations=("rag_expert",))
-    workflow.add_node("rag_expert", rag_expert, destinations=("redis_expert",))
+    workflow.add_node("invoice_expert", invoice_expert, destinations=("tax_expert",))
+    workflow.add_node("tax_expert", tax_expert, destinations=("invoice_expert",))
     workflow.add_node("tool", ToolNode) # --> Off topic node
 
     workflow = add_active_agent_router(
         builder=workflow,
-        route_to=["redis_expert", "rag_expert"],
-        default_active_agent="rag_expert",
+        route_to=["invoice_expert", "tax_expert"],
+        default_active_agent="tax_expert",
 
     )
     app = workflow.compile()
 
     # # Build swarm app inside session scope
     # builder = create_swarm(
-    #     [redis_expert, rag_expert],
-    #     default_active_agent="rag_expert"
+    #     [invoice_expert, tax_expert],
+    #     default_active_agent="tax_expert"
     # )
     # app = builder.compile()
 

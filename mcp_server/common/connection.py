@@ -13,7 +13,7 @@ class RedisConnectionManager:
     _instance: Optional[Redis] = None
 
     @classmethod
-    def get_connection(cls, decode_responses=True) -> Redis:
+    def get_connection(cls, decode_responses=False) -> Redis:
         if cls._instance is None:
             try:
                 redis_class: Type[Union[Redis, RedisCluster]] = redis.cluster.RedisCluster if REDIS_CFG[
@@ -24,7 +24,6 @@ class RedisConnectionManager:
                     port=REDIS_CFG["port"],
                     username=REDIS_CFG["username"],
                     password=REDIS_CFG["password"],
-                    decode_responses=REDIS_CFG["decode_responses"],
                     ssl=REDIS_CFG["ssl"],
                     ssl_ca_path=REDIS_CFG["ssl_ca_path"],
                     ssl_keyfile=REDIS_CFG["ssl_keyfile"],

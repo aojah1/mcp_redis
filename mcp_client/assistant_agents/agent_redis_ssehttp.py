@@ -121,7 +121,7 @@ async def test_case():
     }
 
     answer = await redis_node(raw_state, initialize_llm())
-    print(answer)
+    #print(answer)
     # find the last AIMessage
     ai_reply = next(
         (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),

@@ -12,7 +12,6 @@ REDIS_CFG = {"host": os.getenv('REDIS_HOST', '127.0.0.1'),
              "port": int(os.getenv('REDIS_PORT',6379)),
              "username": os.getenv('REDIS_USERNAME', None),
              "password": os.getenv('REDIS_PWD',''),
-             "decode_responses": False,
              "ssl": os.getenv('REDIS_SSL', False) in ('true', '1', 't'),
              "ssl_ca_path": os.getenv('REDIS_SSL_CA_PATH', None),
              "ssl_keyfile": os.getenv('REDIS_SSL_KEYFILE', None),
@@ -44,9 +43,10 @@ def generate_redis_uri():
 
     # Additional SSL query parameters if SSL is enabled
     query_params = {}
+    query_params["decode_responses"] = cfg["ssl_cert_reqs"]
     if cfg.get("ssl"):
         if cfg.get("ssl_cert_reqs"):
-            query_params["ssl_cert_reqs"] = cfg["ssl_cert_reqs"]
+            query_params["ssl_cert_reqs"] = cfg["decode_responses"]
         if cfg.get("ssl_ca_certs"):
             query_params["ssl_ca_certs"] = cfg["ssl_ca_certs"]
         if cfg.get("ssl_keyfile"):

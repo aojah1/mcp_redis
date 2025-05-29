@@ -48,10 +48,12 @@ async def getdf(key: str)  -> str:
     Returns:
         str: The stored value or an error message.
     """
-    # r = RedisConnectionManager.get_connection()
-    r = redis.StrictRedis(
-    host='amaaaaaawe6j4fqaxqkbzpawdnhcyt2brjexcaamvemvgpbmhotsozgj46qa-p.redis.us-chicago-1.oci.oraclecloud.com',
-    ssl=True, decode_responses=False, port=6379)
+    r = RedisConnectionManager.get_connection()
+
+    print(r)
+    # r = redis.StrictRedis(
+    # host='amaaaaaawe6j4fqaxqkbzpawdnhcyt2brjexcaamvemvgpbmhotsozgj46qa-p.redis.us-chicago-1.oci.oraclecloud.com',
+    # ssl=True, decode_responses=False, port=6379)
 
     key_name = f"idata:{key}:latest"
     raw = r.get(key_name)
