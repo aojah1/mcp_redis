@@ -68,12 +68,15 @@ How to actually get Python 3.13 on macOS (change it for your machine)
     python --version                  # now 3.13.0
 
 # Install dependencies
+# Install MCP Server requirement
 python3.13 -m venv .venv
 source .venv/bin/activate
 python3.13 -m pip install -e .
 ```
 # Install MCP Client requirement
- python3.13 -m pip install -r requirements.txt
+python3.13 -m venv .venv
+source .venv/bin/activate
+python3.13 -m pip install -r requirements.txt
 
 ## Configuration
 
