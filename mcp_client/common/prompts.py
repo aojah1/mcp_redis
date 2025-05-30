@@ -1,4 +1,36 @@
 """Default prompts."""
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+# ────────────────────────────────────────────────────────
+# 1) bootstrap paths + env + llm
+# ────────────────────────────────────────────────────────
+THIS_DIR     = Path(__file__).resolve()
+PROJECT_ROOT = THIS_DIR.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
+
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "LOCAL")
+if ENVIRONMENT == "LOCAL":
+    print(ENVIRONMENT)
+    SYSTEM_PROMPT_REDIS = """You are a Redis assistant. You ONLY have access to Redis keys.
+                  Do not change or modify the key, use it as received.
+                  Do not make assumptions. Retrieve and summarize the exact returned data."""
+
+else:
+    print(ENVIRONMENT)
+    SYSTEM_PROMPT_REDIS = """You are a Redis assistant. You ONLY have access to Redis keys using tools `getdf`.
+                   Only Use `getdf` to retrieve data from Redis based on the key provided.
+                   Do not change or modify the key, use it as received.
+                   Do not make assumptions. Retrieve and summarize the exact returned data."""
+
+
+SYSTEM_PROMPT_INVOICE_EXPERT = """You are a Invoice expert assistant that can search for Invoice related information.
+        You may also use the `transfer_to_tax_expert` tool when a user's question is about Tax or topics outside Invoice scope.
+        If the user asks to speak to Tax Expert (e.g. mentions 'Tax'),
+        you MUST call the tool `transfer_to_tax_expert` (no other tool calls).
+        Otherwise, answer addition questions normally.
+        """
 
 ROUTING_QUERY_SYSTEM_PROMPT = """Generate query to search the right Model Context Protocol (MCP) server document that may help with user's message. Previously, we made the following queries:
 

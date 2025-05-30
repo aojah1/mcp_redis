@@ -70,6 +70,7 @@ class State(MessagesState):
 async def redis_node(
     state: State,
     llm: BaseModel,
+    SYSTEM_PROMPT:str,
     transfer_to_agent_expert: Optional[BaseTool] = None
 ):
     #inp = state["messages"][-1].content
@@ -88,11 +89,6 @@ async def redis_node(
         # Do not make assumptions. Retrieve and summarize the exact value.
         # """
 
-        SYSTEM_PROMPT = """You are a Redis assistant. You ONLY have access to Redis keys using tools `getdf`.
-               Only Use `getdf` to retrieve data from Redis based on the key provided.
-               Do not change or modify the key, use it as received. 
-               Do not make assumptions. Retrieve and summarize the exact returned data.
-               """
 
 #"The `get` tool retrieves a Redis string value given its key."
         messages = state["messages"]

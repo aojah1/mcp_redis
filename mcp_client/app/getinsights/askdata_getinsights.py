@@ -4,11 +4,14 @@
 import asyncio, sys, os, logging
 
 from assistant_agents.agent_redis_ssehttp import redis_node
+from common.prompts import *
 from llm.oci_genai import initialize_llm
 from nemo_guardrails.main import rails_config
 #from trace.langsmith import client
 
 from dotenv import load_dotenv
+
+from common.prompts import *
 
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -30,7 +33,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START
 from langgraph.types import Command
 from langgraph.store.memory import InMemoryStore
-
+from langgraph.checkpoint.memory import InMemorySaver
 
 
 # ─── message types ────────────────────────────────────
@@ -96,7 +99,7 @@ async def call_model(state: State):
         # Append summary to any newer messages
         state["messages"].insert(0, SystemMessage(content=system_message))
 
-    response = await redis_node(state, llm)
+    response = await redis_node(state, llm, SYSTEM_PROMPT_REDIS)
 
     return response
 
@@ -145,6 +148,8 @@ async def should_continue(state: State):
 # ────────────────────────────────────────────────────────
 
 async def askdata_getinsights():
+    checkpointer = InMemorySaver()
+
     # Define a new graph
     workflow = StateGraph(State)
     workflow.add_node("conversation", call_model)
@@ -168,6 +173,7 @@ async def askdata_getinsights():
 
 async def getinsights(max_history: int = 10):
     graph = await askdata_getinsights()
+    config = {"configurable": {"thread_id": "1"}}
     print("🔧  GetInsights Supervisor — type 'exit' to quit\n")
     while True:
         user_text = input("❓> ").strip()
@@ -177,8 +183,7 @@ async def getinsights(max_history: int = 10):
             continue
 
         output = await graph.ainvoke(
-            {"messages": user_text},
-            # config
+            {"messages": user_text},config
         )
         for m in output["messages"][-1:]:
             m.pretty_print()

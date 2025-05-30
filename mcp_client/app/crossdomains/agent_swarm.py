@@ -1,174 +1,175 @@
-
-#pip install langgraph-supervisor langchain-openai
-
-from langgraph.prebuilt import create_react_agent
-
 #!/usr/bin/env python3.13
-# redis_langgraph_supervisor.py
-
-import asyncio, sys, os, logging, re, json
+import uuid
 from pathlib import Path
-from collections import deque
 from dotenv import load_dotenv
-from pydantic import BaseModel
-import functools
-import operator
 
-# silence Pydantic/serialization warnings
-logging.getLogger("pydantic").setLevel(logging.WARN)
-logging.getLogger("langchain_core").setLevel(logging.WARN)
+from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.graph         import StateGraph, END
+from langgraph.prebuilt      import ToolNode, tools_condition, create_react_agent
+from langgraph_swarm         import SwarmState, create_handoff_tool, add_active_agent_router
+from llm.oci_genai           import initialize_llm
 
-# ─── MCP helper & tools ────────────────────────────────
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from langchain_mcp_adapters.tools import load_mcp_tools
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain.agents import AgentType, initialize_agent
-from langchain_core.tools import tool
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import BaseMessage
-
-# ─── LangGraph ReAct agent & supervisor ────────────────
-from typing import Annotated
-from typing_extensions import TypedDict
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import create_react_agent
-from langgraph.prebuilt import ToolNode, tools_condition
-from langgraph.graph import StateGraph, START, END
+from langgraph.store.memory import InMemoryStore
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph_swarm import create_handoff_tool, create_swarm
-from langgraph.graph import MessagesState
 
-# ─── OCI LLM ──────────────────────────────────────────
-from langchain_community.chat_models import ChatOCIGenAI
-
-# ─── message types ────────────────────────────────────
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from collections import deque
-
-# ─── NVIDIA Nemo Guardrails ──────────────────────────────
-from nemoguardrails import LLMRails, RailsConfig
-
-from typing import List, Any, Literal, Sequence
-from typing_extensions import TypedDict
-import langgraph.prebuilt.chat_agent_executor as _exec
-from oci.generative_ai_inference.models import CohereResponseTextFormat
-from langgraph.types import Command
-
-from tools.tool_rag import rag_agent_service
-from assistant_agents.agent_redis_ssehttp import redis_node, client
-
-from langchain_openai import ChatOpenAI
 
 # ────────────────────────────────────────────────────────
-# 1) bootstrap paths + env
-# ────────────────────────────────────────────────────────
+# 0) bootstrap env
 THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
-load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
-
-#────────────────────────────────────────────────────────────────
-# 2) Set up LangSmith for LangGraph development
-# ────────────────────────────────────────────────────────────────
-
-from langsmith import Client
-#client = Client()
-#url = next(client.list_runs(project_name="anup-blog-post")).url
-#print(url)
-#print("LangSmith Tracing is Enabled")
-
+load_dotenv(PROJECT_ROOT / ".env")
 
 # ────────────────────────────────────────────────────────
-# 3) OCI GenAI configuration
+# 1) your hand-off tools—these know how to mutate `state` and return a simple string
+transfer_to_bob = create_handoff_tool(
+    agent_name="Bob",
+    description="Transfer the conversation to Bob, the pirate expert."
+)
+transfer_to_alice = create_handoff_tool(
+    agent_name="Alice",
+    description="Transfer the conversation back to Alice, the addition expert."
+)
+
 # ────────────────────────────────────────────────────────
-#llm = initialize_llm()
-llm = ChatOpenAI(model="gpt-4o")
+# 2) build your agents, passing in the hand-off tools
+model = initialize_llm()  # OCI/Cohere
+
+def add(a: int, b: int) -> int:
+    """
+    add two numbers
+    :param a:
+    :param b:
+    :return:
+    """
+
+    return a + b
+
+alice = create_react_agent(
+    model,
+    tools=[add, transfer_to_bob],
+    prompt="""
+You are Alice, an addition expert.
+
+If the user asks to speak to Bob (e.g. mentions 'Bob' or 'pirate'),
+you MUST call the tool `transfer_to_bob` (no other tool calls).
+Otherwise, answer addition questions normally.
+""",
+    name="Alice",
+)
+
+bob = create_react_agent(
+    model,
+    tools=[transfer_to_alice],
+    prompt="""
+You are Bob, a pirate expert.
+
+If the user asks to go back to Alice (e.g. mentions 'Alice' or 'math'),
+you MUST call the tool `transfer_to_alice`.
+Otherwise, reply in pirate-speak.
+""",
+    name="Bob",
+)
 
 from langgraph.checkpoint.memory import InMemorySaver
-checkpointer = InMemorySaver()
+from langchain_core.messages      import BaseMessage
 
-# Define handoff tools
-transfer_to_rag_expert = create_handoff_tool(
-    agent_name="rag_expert",
-    description="Transfer user to the rag expert assistant that can search for tax related information",
-)
-transfer_to_redis_expert = create_handoff_tool(
-    agent_name="redis_expert",
-    description="Transfer user to the redis expert assistant that can search for invoice related information.",
-)
+class CleanSaver(InMemorySaver):
+    def put_writes(self, writes: dict, *args, **kwargs):
+        def scrub(obj):
+            if isinstance(obj, BaseMessage):
+                # reduce every Message to just its role/content
+                return {"role": obj.role, "content": obj.content}
+            elif isinstance(obj, dict):
+                return {k: scrub(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [scrub(v) for v in obj]
+            else:
+                return obj
 
-async def run_graph():
-    # Start Redis session safely
-    async with client.session("redis") as session:
-        tools = await load_mcp_tools(session)
-
-        redis_expert_agent = create_react_agent(
-            model=llm,
-            tools=[*tools, transfer_to_rag_expert],
-            name="redis_expert",
-            prompt="You are a Redis assistant with access to cached string values using the `get` tool..."
-        )
-
-        rag_expert = create_react_agent(
-            model=llm,
-            tools=[rag_agent_service, transfer_to_redis_expert],
-            name="rag_expert",
-            prompt="You are a rag expert assistant that can search for tax related information"
-        )
-
-        # Build swarm app inside session scope
-        builder = create_swarm(
-            [redis_expert_agent, rag_expert],
-            default_active_agent="rag_expert"
-        )
-        app = builder.compile()
-        return app
-        # print("🔧   Swarm — type 'exit' to quit\n")
-        # while True:
-        #     user_text = input("❓> ").strip()
-        #     if user_text.lower() in {"exit", "quit"}:
-        #         break
-        #     if not user_text:
-        #         continue
-        #
-        #     result = await app.ainvoke({
-        #         "messages": [HumanMessage(content=user_text)]
-        #     })
-        #
-        #     ai_reply = next(
-        #         (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
-        #         None
-        #     )
-        #     if ai_reply:
-        #         print("→ AI says:", ai_reply.content)
-        #     else:
-        #         print("→ (no AI reply found)")
+        clean = scrub(writes)
+        return super().put_writes(clean, *args, **kwargs)
 
 
-# async def get_data():
-#     app = await run_graph()
-#
-#     print("🔧   Swarm — type 'exit' to quit\n")
-#     while True:
-#         user_text = input("❓> ").strip()
-#         if user_text.lower() in {"exit", "quit"}:
-#             break
-#         if not user_text:
-#             continue
-#
-#         result = await app.ainvoke({
-#             "messages": [HumanMessage(content=user_text)]
-#         })
-#
-#         ai_reply = next(
-#             (m for m in reversed(result["messages"]) if isinstance(m, AIMessage)),
-#             None
-#         )
-#         if ai_reply:
-#             print("→ AI says:", ai_reply.content)
-#         else:
-#             print("→ (no AI reply found)")
+# ────────────────────────────────────────────────────────
+# 3) manual StateGraph wiring
+def bob_the_pirate():
+    # Store for long-term (across-thread) memory
+    #across_thread_memory = InMemoryStore()
+
+    # Checkpointer for short-term (within-thread) memory
+    #within_thread_memory = MemorySaver()
+    checkpointer = CleanSaver()
+
+    wf = StateGraph(SwarmState)
+
+    # register our two experts
+    wf.add_node("Alice", alice)
+    wf.add_node("Bob",   bob)
+
+    # single ToolNode for both hand-off tools
+    wf.add_node(
+        "tool",
+        ToolNode(tools=[transfer_to_bob, transfer_to_alice])
+    )
+
+    # if an AIMessage emits a tool_call, run the tool; else END
+    wf.add_conditional_edges("Alice", tools_condition, ["tool", END])
+    wf.add_conditional_edges("Bob",   tools_condition, ["tool", END])
+
+    # after END, router reads state.active_agent and continues there
+    wf = add_active_agent_router(
+        builder=wf,
+        route_to=["Alice", "Bob"],
+        default_active_agent="Alice",
+    )
+
+    app = wf.compile(checkpointer=checkpointer)
+    return app
+
+# ────────────────────────────────────────────────────────
+# 4) synchronous REPL loop
+from langchain_core.messages import HumanMessage, AIMessage
+
+def get_data():
+    app    = bob_the_pirate()
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+    # this will hold the full conversation history
+    history = []
+
+    print("🔧 Swarm ready — type 'exit' to quit\n")
+    try:
+        while True:
+            text = input("❓> ").strip()
+            if not text or text.lower() in {"exit", "quit"}:
+                break
+
+            # 1) add the new user turn
+            history.append(HumanMessage(content=text))
+
+            # 2) invoke with the entire history
+            output = app.invoke(
+                {"messages": history},
+                config
+            )
+
+            # 3) pull out the AI's reply
+            reply = next(
+                (m for m in reversed(output["messages"]) if isinstance(m, AIMessage)),
+                None
+            )
+            if reply:
+                print("→ AI says:", reply.content)
+                # 4) append it to history so it goes back in next turn
+                history.append(reply)
+            else:
+                print("→ (no AI reply found)")
+
+    finally:
+        if hasattr(app, "_close"):
+            try: app._close()
+            except TypeError: pass
 
 
 if __name__ == "__main__":
-    asyncio.run(run_graph())
+    get_data()

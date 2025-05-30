@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 import functools
 import operator
+import uuid
 
 # silence Pydantic/serialization warnings
 logging.getLogger("pydantic").setLevel(logging.WARN)
@@ -57,6 +58,8 @@ from oci.generative_ai_inference.models import CohereResponseTextFormat
 from langgraph.types import Command
 from tools.tool_rag import rag_agent_service
 from assistant_agents.agent_redis_ssehttp import redis_node
+from llm.oci_genai import initialize_llm
+from common.prompts import *
 
 # ────────────────────────────────────────────────────────
 # 1) bootstrap paths + env
@@ -79,8 +82,8 @@ from langsmith import Client
 # ────────────────────────────────────────────────────────
 # 3) OCI GenAI configuration
 # ────────────────────────────────────────────────────────
-#llm = initialize_llm()
-llm = ChatOpenAI(model="gpt-4o")
+llm = initialize_llm()
+#llm = ChatOpenAI(model="gpt-4o")
 
 from langgraph.checkpoint.memory import InMemorySaver
 checkpointer = InMemorySaver()
@@ -107,7 +110,7 @@ async def agent_node(state, agent, name):
 
 async def redis_node_(state, name):
     print(f"[Node Invoked] → {name}")
-    result = await redis_node(state, llm, transfer_to_tax_expert)
+    result = await redis_node(state, llm, SYSTEM_PROMPT_REDIS, transfer_to_tax_expert)
     return {
         "messages": state["messages"] + result["messages"]
     }
@@ -116,16 +119,38 @@ rag_agent = create_react_agent(
         model=llm,
         tools=[rag_agent_service, transfer_to_invoice_expert],
         name="tax_expert",
-        prompt="""You are a tax expert assistant that can search for tax related information.
-        You may also use the `transfer_to_invoice_expert` tool when a user's question is about Invoice or topics outside Tax scope.
-        """,
+        prompt=SYSTEM_PROMPT_INVOICE_EXPERT,
     )
 
 invoice_expert = functools.partial(redis_node_, name="invoice_expert")
 tax_expert = functools.partial(agent_node, agent=rag_agent, name="tax_expert")
 
-
 def run_swarm():
+    wf = StateGraph(SwarmState)
+
+    # register our two experts
+    wf.add_node("invoice_expert", invoice_expert)
+    wf.add_node("tax_expert",   tax_expert)
+
+    # single ToolNode for both hand-off tools
+    wf.add_node(
+        "tool",
+        ToolNode(tools=[transfer_to_tax_expert, transfer_to_invoice_expert]),
+    )
+
+    # if an AIMessage emits a tool_call, run the tool; else END
+    wf.add_conditional_edges("invoice_expert", tools_condition, ["tool", END])
+    wf.add_conditional_edges("tax_expert",   tools_condition, ["tool", END])
+
+    # after END, router reads state.active_agent and continues there
+    wf = add_active_agent_router(
+        builder=wf,
+        route_to=["invoice_expert", "tax_expert"],
+        default_active_agent="invoice_expert",
+    )
+
+    return wf.compile()
+def run_swarm1():
     # Build the rest of the workflow
     workflow = StateGraph(SwarmState)
     workflow.add_node("invoice_expert", invoice_expert, destinations=("tax_expert",))
@@ -149,32 +174,90 @@ def run_swarm():
 
     return app
 
+from langchain_core.messages import HumanMessage, AIMessage
+
+def get_data1():
+    app    = run_swarm()
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+    # this will hold the full conversation history
+    history = []
+
+    print("🔧 Swarm ready — type 'exit' to quit\n")
+    try:
+        while True:
+            text = input("❓> ").strip()
+            if not text or text.lower() in {"exit", "quit"}:
+                break
+
+            # 1) add the new user turn
+            history.append(HumanMessage(content=text))
+
+            # 2) invoke with the entire history
+            output = app.invoke(
+                {"messages": history},
+                config
+            )
+
+            # 3) pull out the AI's reply
+            reply = next(
+                (m for m in reversed(output["messages"]) if isinstance(m, AIMessage)),
+                None
+            )
+            if reply:
+                print("→ AI says:", reply.content)
+                # 4) append it to history so it goes back in next turn
+                history.append(reply)
+            else:
+                print("→ (no AI reply found)")
+
+    finally:
+        if hasattr(app, "_close"):
+            try: app._close()
+            except TypeError: pass
+
 async def get_data():
     app = run_swarm()
 
-    print("🔧   Swarm — type 'exit' to quit\n")
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+    # this will hold the full conversation history
+    history = []
+
+    print("🔧 Swarm ready — type 'exit' to quit\n")
     try:
         while True:
-            user_text = input("❓> ").strip()
-            if user_text.lower() in {"exit", "quit"}:
+            text = input("❓> ").strip()
+            if not text or text.lower() in {"exit", "quit"}:
                 break
-            if not user_text:
-                continue
 
-            answer = await app.ainvoke({"messages": [HumanMessage(content=user_text)]},config={"verbose": True})
+            # 1) add the new user turn
+            history.append(HumanMessage(content=text))
 
-            ai_reply = next(
-                (m for m in reversed(answer["messages"]) if isinstance(m, AIMessage)),
-                None
+            # 2) invoke with the entire history
+            output = await app.ainvoke(
+                {"messages": history},
+                config
             )
 
-            if ai_reply:
-                print("→ AI says:", ai_reply.content)
+            # 3) pull out the AI's reply
+            reply = next(
+                (m for m in reversed(output["messages"]) if isinstance(m, AIMessage)),
+                None
+            )
+            if reply:
+                print("→ AI says:", reply.content)
+                # 4) append it to history so it goes back in next turn
+                history.append(reply)
             else:
                 print("→ (no AI reply found)")
+
     finally:
         if hasattr(app, "_close"):
-            await app._close()
+            try:
+                await app._close()
+            except TypeError:
+                pass
 
 
 if __name__ == "__main__":
