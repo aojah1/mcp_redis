@@ -29,7 +29,8 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from llm.oci_genai import initialize_llm
-
+#from llm.oci_ds_md import initialize_llm
+from common.prompts import *
 # ────────────────────────────────────────────────────────────────
 # 1) init logging & env
 #────────────────────────────────────────────────────────────────
@@ -110,13 +111,11 @@ async def redis_node(
 # Test Cases -
 # now invoke the tool with the “state” envelope:
 async def test_case():
-
-
     raw_state = {
         "messages": [HumanMessage(content="Get trends from the data -  by retrieving using tool 'getdf' for key 02e4b9e5-5e92-4836-b589-7536266c7baa")]
     }
 
-    answer = await redis_node(raw_state, initialize_llm())
+    answer = await redis_node(raw_state, initialize_llm(), SYSTEM_PROMPT=SYSTEM_PROMPT_REDIS)
     #print(answer)
     # find the last AIMessage
     ai_reply = next(

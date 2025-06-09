@@ -5,9 +5,8 @@
     "agent_supervisor_swarm": "app/crossdomains/agent_supervisor_swarm.py:run_swarm",
     "agent_bob_the_pirate": "app/crossdomains/agent_swarm.py:bob_the_pirate"
   },
-  "dependencies": [
-    "env: .env"
-  ],
+  "env": ".env",
+  "dependencies": ["."],
   "mounts": [
     {
       "source": "~/.oci/config",
