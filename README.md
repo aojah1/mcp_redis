@@ -123,6 +123,11 @@ If it says "Not Found" or connection refused, the server isn’t running correct
 ** on another terminal run - 
 python3.13 mcp_client/redis_langchain.py
 
+### NOTE:
+There is an issue with the MCP Versions, both the server and the client has 2 different version. Here is the fix -
+In MCP_Client .env ==> use this ==> MCP_TRANSPORT=“streamable_http”
+In MCP_Server .env ==> use this ==> MCP_TRANSPORT=“streamable-http” 
+
 ### Using with Docker
 
 You can use a dockerized deployment of this server. You can either build your own image or use the official [Redis MCP Docker](https://hub.docker.com/r/mcp/redis) image.

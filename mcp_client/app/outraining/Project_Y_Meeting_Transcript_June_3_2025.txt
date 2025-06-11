@@ -1,0 +1,112 @@
+
+[Transcript: Project Y – Virtual Meeting | Date: June 3, 2025 | Duration: 2 hours]
+Participants:
+- Alice (Product Lead)
+- Bob (Lead Engineer)
+- Charlie (Marketing Manager)
+
+00:00:03 — Alice:
+Okay, let’s get started. Thanks everyone for joining. As you know, this meeting is to go over our Q2 roadmap for Project Y, discuss some ongoing resourcing constraints, and take a look at the recent user feedback summary.
+
+00:00:20 — Bob:
+Yep, sounds good. I have the JIRA dashboard up in case we want to reference anything during the discussion.
+
+00:00:26 — Charlie:
+Great, I’ll be screen sharing the feedback summary later. But let’s follow Alice’s flow first.
+
+Q2 Roadmap Planning
+
+00:00:40 — Alice:
+Alright. So for Q2, the major milestones include releasing the new onboarding flow by mid-July, implementing the notification module, and completing the analytics dashboard revamp. Bob, can you walk us through dev capacity for these?
+
+00:01:05 — Bob:
+Sure. So currently we’ve got 2 front-end devs and 1 back-end fully on Project Y. But one of them is splitting time with Project Delta, which is affecting throughput.
+
+00:01:18 — Alice:
+Right, that’s the issue I flagged to leadership. We may need to push the dashboard revamp to early Q3 unless we reassign someone from Ops temporarily.
+
+00:01:30 — Charlie:
+From a user engagement perspective, the dashboard’s important, but I’d say onboarding is higher priority. It directly impacts conversion.
+
+00:01:45 — Bob:
+Agreed. We can start the onboarding revamp next sprint. But the API updates needed might delay the notifications module unless we parallelize.
+
+00:01:58 — Alice:
+Okay, let’s lock in onboarding and push notifications to post-onboarding unless we get extra help. I’ll rework the timeline draft and share it by EOD.
+
+Resource Allocation Challenges
+
+00:02:15 — Alice:
+Let’s talk resources more broadly. Bob, are we still blocked on QA bandwidth?
+
+00:02:22 — Bob:
+Yeah, QA is a bottleneck. We have only part-time support from Anita. We had three regressions last sprint.
+
+00:02:35 — Charlie:
+That also affects go-to-market timelines. We can't run campaigns if we're unsure about stability.
+
+00:02:45 — Alice:
+I’ll raise a request for a dedicated QA contractor for the next 6 weeks. In the meantime, can devs write basic test scripts?
+
+00:02:55 — Bob:
+We can, but it’ll slow feature development. I’ll flag low-hanging test cases and assign those.
+
+00:03:10 — Alice:
+Fair. Let’s revisit this in the Monday check-in after I speak with resourcing.
+
+Review of Recent User Feedback
+
+00:03:30 — Charlie:
+Okay, switching gears — I’ll share the user feedback dashboard now.
+[Screen share begins]
+
+00:03:40 — Charlie:
+So from March through May, we had 240 feedback entries. Major themes: confusion in onboarding (40% of mentions), requests for more export options (20%), and praise for speed improvements.
+
+00:03:58 — Bob:
+Good to hear on the speed. That was a tough optimization cycle.
+
+00:04:05 — Alice:
+Yeah, hats off to you and the team, Bob. Let’s dig into the onboarding confusion part.
+
+00:04:12 — Charlie:
+Most comments say the login > tutorial > dashboard flow feels “abrupt.” They expect more contextual hints.
+
+00:04:25 — Alice:
+Maybe a progress tracker or embedded help tips? We had that in the backlog a while ago.
+
+00:04:33 — Bob:
+Yeah, we can reuse that component from Project Echo. Would need a few tweaks.
+
+00:04:40 — Charlie:
+Perfect. Also, people want CSV and JSON export support in the dashboard. That might tie into our Q3 revamp.
+
+00:04:52 — Bob:
+We’ll scope that and see if it fits within the current sprint buffer. Might need to split it.
+
+Final Discussion & Wrap-Up
+
+00:05:10 — Alice:
+Alright, to summarize:
+- We’ll prioritize onboarding revamp.
+- Dashboard revamp tentatively moves to Q3.
+- Alice to push for extra QA help.
+- Devs to cover basic tests meanwhile.
+- Feedback-driven tweaks will influence onboarding redesign.
+
+00:05:33 — Charlie:
+I’ll draft a summary email for the marketing team and include user sentiment data for onboarding and export features.
+
+00:05:40 — Bob:
+I’ll update the JIRA tickets based on today’s roadmap changes.
+
+00:05:45 — Alice:
+Great. Thanks everyone — productive session. I’ll send meeting notes and the revised roadmap tonight.
+
+00:05:54 — Charlie:
+Thanks all. Talk soon.
+
+00:05:57 — Bob:
+Later!
+
+[Meeting ends]

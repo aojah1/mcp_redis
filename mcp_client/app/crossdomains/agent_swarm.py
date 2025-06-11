@@ -97,8 +97,8 @@ def bob_the_pirate():
     #across_thread_memory = InMemoryStore()
 
     # Checkpointer for short-term (within-thread) memory
-    #within_thread_memory = MemorySaver()
-    checkpointer = CleanSaver()
+    within_thread_memory = MemorySaver()
+    #checkpointer = CleanSaver()
 
     wf = StateGraph(SwarmState)
 
@@ -123,7 +123,7 @@ def bob_the_pirate():
         default_active_agent="Alice",
     )
 
-    app = wf.compile(checkpointer=checkpointer)
+    app = wf.compile()
     return app
 
 # ────────────────────────────────────────────────────────
