@@ -48,6 +48,7 @@ def test():
     ]
 
     llm = initialize_llm()
+    print(llm)
     response = llm.invoke(messages)
     print(response.content)
 

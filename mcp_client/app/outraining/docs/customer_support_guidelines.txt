@@ -1,0 +1,19 @@
+Customer Support Guidelines – Company X
+
+Customer Support Guidelines – Company X
+
+1. Response Times:
+   - Emails: Must be responded to within 24 hours.
+   - Chats and voice calls: Must be responded to within **2 minutes**.
+
+2. Issue Resolution:
+   - Tier 1 resolves common FAQs and product inquiries.
+   - Tier 2 handles escalated issues, including technical troubleshooting.
+
+3. Documentation:
+   - Every customer interaction must be logged in the CRM.
+   - Escalations must include detailed notes and resolution attempts.
+
+4. Language & Courtesy:
+   - Use empathetic, professional language.
+   - Avoid jargon unless necessary, and always confirm customer understanding.

@@ -13,6 +13,7 @@ from pathlib import Path
 
 THIS_DIR     = Path(__file__).resolve()
 PROJECT_ROOT = THIS_DIR.parent.parent
+print(PROJECT_ROOT)
 load_dotenv(PROJECT_ROOT / ".env")
 
 # Set up the OCI GenAI Agents endpoint configuration
@@ -66,5 +67,8 @@ def rag_agent_service(inp: str):
 def test_case():
     answer = rag_agent_service.invoke("how to create a good recipe")
     print(answer)
+
+if __name__ == "__main__":
+    test_case()
 
 

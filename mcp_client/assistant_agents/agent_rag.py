@@ -1,4 +1,4 @@
-from mcp_client.tools.tool_rag import rag_agent_service
+from tools.tool_rag import rag_agent_service
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, BaseMessage
@@ -62,7 +62,7 @@ def rag_node(state: State, llm: BaseModel):
 # Test Cases -
 # now invoke the tool with the “state” envelope:
 def test_case():
-    from mcp_client.llm.oci_genai import initialize_llm
+    from llm.oci_genai import initialize_llm
 
     raw_state = {
         "messages": [HumanMessage(content="how to create a good recipe")]

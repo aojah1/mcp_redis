@@ -162,7 +162,7 @@ async def askdata_getinsights():
 
     # Compile
     memory = MemorySaver()
-    graph = workflow.compile()
+    graph = workflow.compile(checkpointer=memory)
 
     return graph
 
