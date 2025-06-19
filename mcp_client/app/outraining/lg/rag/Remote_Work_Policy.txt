@@ -1,0 +1,7 @@
+# Remote Work Policy
+
+## VPN Use
+All remote access must go through the approved company VPN.
+
+## Device Compliance
+Only IT-approved devices with up-to-date security patches may be used for remote work.

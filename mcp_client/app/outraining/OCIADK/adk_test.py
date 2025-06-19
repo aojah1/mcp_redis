@@ -7,6 +7,7 @@ import oci,os
 from langchain_core.tools import tool
 from oci.generative_ai_agent_runtime import GenerativeAiAgentRuntimeClient
 from oci.generative_ai_agent_runtime.models import CreateSessionDetails
+from tools.tool_rag import initialize_oci_genai_agent_service
 
 from dotenv import load_dotenv
 from pathlib import Path
@@ -16,27 +17,17 @@ PROJECT_ROOT = THIS_DIR.parent.parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 print(PROJECT_ROOT)
 # Set up the OCI GenAI Agents endpoint configuration
-AGENT_EP_ID = "ocid1.genaiagentendpoint.oc1.us-chicago-1.amaaaaaawe6j4fqa4hiv7nfbfmp65gwcuxbuncjovhtzx74rjfvbyedqxf6q"
-
+AGENT_EP_ID = os.getenv("AGENT_EP_ID")
 AGENT_SERVICE_EP = os.getenv("AGENT_SERVICE_EP")
 
 config = oci.config.from_file(profile_name="DEFAULT")  # Update this with your own profile name
 sess_id = ""
 
+llm_agent, llm_session= initialize_oci_genai_agent_service()
+print("llm_agent" + str(llm_agent))
+print("llm_session" + str(llm_session))
 
-def initialize_oci_genai_agent_service():
-    """Initialize OCI GenAI Agent Service and create a session"""
 
-    # Initialize service client with default config file
-    generative_ai_agent_runtime_client = oci.generative_ai_agent_runtime.GenerativeAiAgentRuntimeClient(
-        config,
-        service_endpoint=AGENT_SERVICE_EP)
-
-    return generative_ai_agent_runtime_client
-
-generative_ai_agent_runtime_client = initialize_oci_genai_agent_service()
-print(generative_ai_agent_runtime_client)
-import oci
 print(oci.__version__)
 
 from typing import Dict
@@ -63,7 +54,7 @@ def main():
 
     agent = Agent(
         client=client,
-        agent_endpoint_id="ocid1.genaiagentendpoint.oc1.us-chicago-1.amaaaaaawe6j4fqa4hiv7nfbfmp65gwcuxbuncjovhtzx74rjfvbyedqxf6q",
+        agent_endpoint_id=AGENT_EP_ID,
         instructions="You perform weather queries using tools.",
         tools=[get_weather]
     )

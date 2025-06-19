@@ -1,0 +1,25 @@
+# Company IT Security Policy
+
+## Password Policy
+All employees must use complex passwords with a minimum length of 12 characters. Passwords must include uppercase, lowercase, numbers, and symbols.
+Passwords should be updated every 90 days.
+
+## Multi-Factor Authentication (MFA)
+MFA is required for all remote access, admin accounts, and VPN connections. Supported MFA methods include authenticator apps and hardware tokens.
+
+## Data Backup and Recovery
+All critical data must be backed up daily to the secure cloud storage system. Backup logs are reviewed weekly. Recovery drills are performed quarterly.
+
+## Acceptable Use Policy
+Company devices and networks must be used for authorized business purposes only. Personal use is permitted during breaks if it does not interfere with business activities.
+
+## Email and Communication
+Phishing awareness training is mandatory for all employees annually. Do not open suspicious attachments or click unknown links. Use secure messaging platforms for sensitive data.
+
+## Software and Patch Management
+Only approved software may be installed on company devices. Automatic patching is enabled and managed centrally by the IT department.
+
+## Incident Response
+In case of a security breach, report immediately to it-security@example.com. The incident response team will investigate and take corrective action within 24 hours.
+
+# End of Document
