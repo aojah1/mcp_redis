@@ -137,6 +137,7 @@ If you'd like to build your own image, the Redis MCP Server provides a Dockerfil
 ```commandline
 docker build -t mcp_redis .
 ```
+redis-server --dir ~/redis-data --dbfilename dump.rdb
 
 
 ### Troubleshooting

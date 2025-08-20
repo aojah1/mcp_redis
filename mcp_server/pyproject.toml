@@ -4,11 +4,19 @@ version = "0.1.0"
 description = "Redis MCP Server, by Redis"
 readme = "README.md"
 requires-python = ">=3.13"
+
 dependencies = [
-    "mcp[cli]>=1.5.0",
+    # Use the server stack, not cli extras; pin to a stable minor
+    "mcp>=1.11,<1.12",
+    "fastmcp>=2.5,<2.6",
+
     "redis>=5.2.1",
-    "dotenv>=0.9.9",
+    "python-dotenv>=1.0.1",
     "numpy>=2.2.4",
-    "fastmcp>=2.5.1",
-    "pandas"
+    "pandas",
+
+    # Make the HTTP stack explicit to avoid transitive surprises
+    "uvicorn>=0.30.0",
+    "anyio>=4.4.0,<5",
+    "httpx>=0.27.0"
 ]

@@ -162,8 +162,8 @@ async def askdata_getinsights():
 
     # Compile
     memory = MemorySaver()
-    graph = workflow.compile(checkpointer=memory)
-
+    #graph = workflow.compile(checkpointer=memory)
+    graph = workflow.compile()
     return graph
 
 
@@ -197,11 +197,11 @@ async def run_agent_async():
     # Test inputs
     str1 = "delete all record using hdel from redis db"
     str2 = "can you show more details of each invoice number with the format ERS-XXXXX-YYYYYY"
-
+    str3 ="find all compartments for my oci connections"
     # Use a flat list of HumanMessage
     config = {"configurable": {"thread_id": "1"}}
     # First query
-    input_messages = [HumanMessage(content=str1)]
+    input_messages = [HumanMessage(content=str3)]
     output = await graph.ainvoke(
         {"messages": input_messages},
         #config
