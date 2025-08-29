@@ -121,12 +121,16 @@ curl -N http://localhost:8000/sse?server=redis
 If it says "Not Found" or connection refused, the server isn’t running correctly.
 
 ** on another terminal run - 
-python3.13 mcp_client/redis_langchain.py
+python3.13 -m mcp_client.app.getinsight.askdata_getinsights
 
 ### NOTE:
 There is an issue with the MCP Versions, both the server and the client has 2 different version. Here is the fix -
 In MCP_Client .env ==> use this ==> MCP_TRANSPORT=“streamable_http”
 In MCP_Server .env ==> use this ==> MCP_TRANSPORT=“streamable-http” 
+
+###  Run a streamilt app to execute the agent
+
+ python3.13 -m app.getinsights.askdata_getinsights
 
 ### Using with Docker
 

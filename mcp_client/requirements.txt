@@ -1,7 +1,7 @@
 # requirements.txt  ─ after the fix
 langchain-openai>=0.1.8
 langgraph>=0.0.51
-fastmcp>=2.5.1
+#fastmcp>=2.5.1
 langchain>=0.1.20
 openai>=1.23.0
 oci==2.141.1
@@ -17,6 +17,7 @@ langgraph-cli[inmem]
 streamlit
 nest_asyncio
 langgraph-swarm>=0.0.7
-mcp[cli]>=1.5.0
-
+#mcp[cli]>=1.5.0
+mcp>=1.11,<1.12
+fastmcp>=2.5,<2.6
 

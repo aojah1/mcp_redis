@@ -19,7 +19,7 @@ assistant_id = ""
 # Search all hosted graphs
 async def search():
     assistants = await client.assistants.search(graph_id= "askdata_getinsights")
-    assistant_id = assistants[0]["assistant_id"]
+    assistant_id = assistants[0]["assistant_id"] # Unique ID e.g 0468dc38-81bf-5b14-969d-81bd9f36e07d
 
     print(f"Assistant ID: '{assistant_id}'")
     return assistant_id
@@ -55,4 +55,6 @@ async def invoke(stream_mode: str, prompt):
 
 
 if __name__ == '__main__':
-    asyncio.run(invoke())
+    content="which Invoice I should pay first based criteria such as highest amount due and highest past due date for 'session:e5f6a932-6123-4a04-98e9-6b829904d27f'"
+
+    asyncio.run(invoke("values",content))

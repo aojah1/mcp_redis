@@ -1,9 +1,6 @@
 {
   "graphs": {
-    "askdata_getinsights": "app/getinsights/askdata_getinsights.py:askdata_getinsights",
-    "agent_supervisor": "app/crossdomains/agent_supervisor.py:agent_supervisor",
-    "agent_supervisor_swarm": "app/crossdomains/agent_supervisor_swarm.py:run_swarm",
-    "agent_bob_the_pirate": "app/crossdomains/agent_swarm.py:bob_the_pirate"
+    "askdata_getinsights": "app/getinsights/askdata_getinsights.py:askdata_getinsights"
   },
   "env": ".env",
   "dependencies": ["."],
