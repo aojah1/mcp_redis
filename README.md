@@ -132,6 +132,11 @@ In MCP_Server .env ==> use this ==> MCP_TRANSPORT=“streamable-http”
 
  python3.13 -m app.getinsights.askdata_getinsights
 
+### Run FastAPI
+
+python3.13 -m uvicorn src.app.getinsights.api_getinsights:app --reload --host 0.0.0.0 --port 8083
+
+
 ### Using with Docker
 
 You can use a dockerized deployment of this server. You can either build your own image or use the official [Redis MCP Docker](https://hub.docker.com/r/mcp/redis) image.
