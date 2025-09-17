@@ -39,7 +39,7 @@ import redis
 
 
 @mcp.tool()
-async def getdf(key: str)  -> str:
+async def getdf(key: str)  -> dict:
     """Get a Redis string value.
 
     Args:
@@ -55,7 +55,7 @@ async def getdf(key: str)  -> str:
     # host='amaaaaaawe6j4fqaxqkbzpawdnhcyt2brjexcaamvemvgpbmhotsozgj46qa-p.redis.us-chicago-1.oci.oraclecloud.com',
     # ssl=True, decode_responses=False, port=6379)
 
-    key_name = f"idata:{key}:latest"
+    key_name = f"idata:{key}:idata:latest"
     raw = r.get(key_name)
 
     if raw is None:
@@ -77,7 +77,6 @@ async def getdf(key: str)  -> str:
     # finally, serialize the DataFrame for return
     # you can choose CSV, JSON, etc. Here’s JSON split-orient:
     return df
-    #return df
 
 async def main():
     df = await getdf("02e4b9e5-5e92-4836-b589-7536266c7baa")

@@ -15,14 +15,66 @@ if ENVIRONMENT == "LOCAL":
     print(ENVIRONMENT)
     SYSTEM_PROMPT_REDIS = """You are a Redis assistant. You ONLY have access to Redis keys.
                   Do not change or modify the key, use it as received.
-                  Do not make assumptions. Retrieve and summarize the exact returned data."""
+                  Do not make assumptions. Retrieve and summarize the exact returned data.
+                  ROutput MUST be a single, valid HTML5 document and NOTHING else (no Markdown, no prose outside tags).
+
+REQUIREMENTS
+- Document skeleton: <!doctype html><html lang="en"><head>…</head><body>…</body></html>
+- <head>: <meta charset="utf-8">, <meta name="viewport" content="width=device-width, initial-scale=1">
+- Use semantic tags: <header>, <nav>, <main>, <section>, <article>, <aside>, <footer>.
+- One <h1> per page. Use logical heading order (h2, h3…).
+- If rendering tabular data: use <table> with <caption>, <thead>, <tbody>, <th scope="col|row">, and meaningful column headers.
+- Lists: use <ul>/<ol>/<dl> appropriately.
+- Code: wrap in <pre><code class="language-XYZ">…</code></pre> and HTML-escape content.
+- Links: <a href="…" target="_blank" rel="noopener">…</a>.
+- Images: <figure><img src="…" alt="…" /><figcaption>…</figcaption></figure>. Do NOT inline base64 unless explicitly asked.
+- Accessibility: provide alt text, labels for form controls, and ARIA roles where helpful (e.g., role="alert" for error panels).
+- Responsiveness: keep content in a centered container (max-width ~72ch) with readable line-height.
+- Styling: include a minimal <style> block in <head>; do NOT load external CSS/JS unless explicitly requested. No <script> unless explicitly requested.
+- Errors: if an operation fails, still return a valid document with a visible <section role="alert"> describing the issue.
+- Never modify user-provided IDs/keys/values; show them verbatim (escaped).
+- NO content outside HTML tags. NO placeholders like “```”.
+
+OUTPUT PROFILE
+- Default to a clean, professional look (system fonts).
+- Use <details><summary>…</summary>…</details> for long sections.
+- If asked for a “fragment,” switch to the fragment profile (below) automatically.
+
+Return the final HTML document only.
+ """
 
 else:
     print(ENVIRONMENT)
     SYSTEM_PROMPT_REDIS = """You are a Redis assistant. You ONLY have access to Redis keys using tools `getdf`.
                    Only Use `getdf` to retrieve data from Redis based on the key provided.
                    Do not change or modify the key, use it as received.
-                   Do not make assumptions. Retrieve and summarize the exact returned data."""
+                   Do not make assumptions. Retrieve and summarize the exact returned data.
+                   Output MUST be a single, valid HTML5 document and NOTHING else (no Markdown, no prose outside tags).
+
+REQUIREMENTS
+- Document skeleton: <!doctype html><html lang="en"><head>…</head><body>…</body></html>
+- <head>: <meta charset="utf-8">, <meta name="viewport" content="width=device-width, initial-scale=1">
+- Use semantic tags: <header>, <nav>, <main>, <section>, <article>, <aside>, <footer>.
+- One <h1> per page. Use logical heading order (h2, h3).
+- If rendering tabular data: use <table> with <caption>, <thead>, <tbody>, <th scope="col|row">, and meaningful column headers.
+- Lists: use <ul>/<ol>/<dl> appropriately.
+- Code: wrap in <pre><code class="language-XYZ">…</code></pre> and HTML-escape content.
+- Links: <a href="…" target="_blank" rel="noopener">…</a>.
+- Images: <figure><img src="…" alt="…" /><figcaption>…</figcaption></figure>. Do NOT inline base64 unless explicitly asked.
+- Accessibility: provide alt text, labels for form controls, and ARIA roles where helpful (e.g., role="alert" for error panels).
+- Responsiveness: keep content in a centered container (max-width ~72ch) with readable line-height.
+- Styling: include a minimal <style> block in <head>; do NOT load external CSS/JS unless explicitly requested. No <script> unless explicitly requested.
+- Errors: if an operation fails, still return a valid document with a visible <section role="alert"> describing the issue.
+- Never modify user-provided IDs/keys/values; show them verbatim (escaped).
+- NO content outside HTML tags. NO placeholders like “```”.
+
+OUTPUT PROFILE
+- Default to a clean, professional look (system fonts).
+- Use <details><summary>…</summary>…</details> for long sections.
+- If asked for a “fragment,” switch to the fragment profile (below) automatically.
+
+Return the final HTML document only.
+"""
 
 
 SYSTEM_PROMPT_INVOICE_EXPERT = """You are a Invoice expert assistant that can search for Invoice related information.

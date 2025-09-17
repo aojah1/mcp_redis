@@ -1,12 +1,22 @@
 import urllib
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 
-load_dotenv()
+
+# ────────────────────────────────────────────────────────
+# 1) bootstrap paths + env + llm
+# ────────────────────────────────────────────────────────
+THIS_DIR     = Path(__file__).resolve()
+PROJECT_ROOT = THIS_DIR.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
+
 
 MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'stdio')
 MCP_SSE_HOST = os.getenv('MCP_SSE_HOST', '0.0.0.1')
-MCP_SSE_PORT = os.getenv('MCP_SSE_PORT', '8000')
+MCP_SSE_PORT = os.getenv('MCP_SSE_PORT', 8000)
+
+
 
 REDIS_CFG = {"host": os.getenv('REDIS_HOST', '127.0.0.1'),
              "port": int(os.getenv('REDIS_PORT',6379)),

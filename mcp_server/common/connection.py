@@ -4,9 +4,9 @@ import redis
 from redis import Redis
 from redis.cluster import RedisCluster
 from typing import Optional, Type, Union
-from common.config import REDIS_CFG
+from src.common.config import REDIS_CFG
 
-from common.config import generate_redis_uri
+from src.common.config import generate_redis_uri
 
 
 class RedisConnectionManager:

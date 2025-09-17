@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 # 1) bootstrap paths + env + llm
 # ────────────────────────────────────────────────────────
 THIS_DIR     = Path(__file__).resolve()
-PROJECT_ROOT = THIS_DIR.parent.parent
+PROJECT_ROOT = THIS_DIR.parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")  # expects OCI_ vars in .env
 
 LANGRAPH_DEV = os.environ.get("LANGRAPH_DEV", "http://127.0.0.1:2024")
